@@ -48,7 +48,7 @@ TAPIR_CONFIG = ApiSourceConfig(
     name="tapir",
     details_url=ORGANIZED_COMMANDS_URL,
     model_names_url=f"{MULTICONN_SOURCE_URL}/tapir/schema/_command_model_names.json",
-    output_dir=ROOT_DIR / "src" / "tapir_archicad_mcp" / "tools" / "generated" / "tapir",
+    output_dir=ROOT_DIR / "src" / "caracara_archicad_mcp" / "tools" / "generated" / "tapir",
     api_call_method="post_tapir_command",
     group_mapping={
         # Elements
@@ -124,7 +124,7 @@ OFFICIAL_CONFIG = ApiSourceConfig(
     name="official",
     details_url=ORGANIZED_COMMANDS_URL,
     model_names_url=f"{MULTICONN_SOURCE_URL}/official/schema/_command_model_names.json",
-    output_dir=ROOT_DIR / "src" / "tapir_archicad_mcp" / "tools" / "generated" / "official",
+    output_dir=ROOT_DIR / "src" / "caracara_archicad_mcp" / "tools" / "generated" / "official",
     api_call_method="post_command",
     prefix_to_strip="API.",
     group_mapping={

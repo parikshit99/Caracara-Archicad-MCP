@@ -4,13 +4,12 @@ from multiconn_archicad.models.official.commands import (
     GetAllPropertyGroupIdsParameters,
     GetAllPropertyIdsOfElementsParameters,
     GetAllPropertyIdsParameters,
+    GetDetailsOfPropertiesParameters,
     GetPropertyDefinitionAvailabilityParameters,
     GetPropertyGroupsParameters,
     GetPropertyIdsParameters,
 )
 
-from caracara_archicad_mcp.field_masking import prune_payload
-from caracara_archicad_mcp.tools.custom.models import GetDetailsOfPropertiesInput
 from caracara_archicad_mcp.tools.tool_registry import register_tool_for_dispatch
 
 
@@ -108,27 +107,20 @@ register_tool_for_dispatch(
 )
 
 
-def get_details_of_properties(conn_header: ConnHeader, params: GetDetailsOfPropertiesInput) -> dict:
-    """Returns the details of property definitions with optional field projection."""
-    property_ids = [
-        p.model_dump(mode="json", by_alias=True, exclude_none=True) if hasattr(p, "model_dump") else p
-        for p in params.property_ids
-    ]
-    raw_result = conn_header.core.post_command(
+def get_details_of_properties(conn_header: ConnHeader, params: GetDetailsOfPropertiesParameters) -> dict:
+    """Returns the details of property definitions."""
+    return conn_header.core.post_command(
         command="API.GetDetailsOfProperties",
-        parameters={"propertyIds": property_ids},
+        parameters=params.model_dump(mode="json", by_alias=True, exclude_none=True),
     )
-    if params.fields:
-        return prune_payload(raw_result, params.fields)
-    return raw_result
 
 
 register_tool_for_dispatch(
     get_details_of_properties,
     name="properties_get_details_of_properties",
     title="GetDetailsOfProperties",
-    description="Returns the details of property definitions with optional field projection.",
-    params_model=GetDetailsOfPropertiesInput,
+    description="Returns the details of property definitions.",
+    params_model=GetDetailsOfPropertiesParameters,
 )
 
 
