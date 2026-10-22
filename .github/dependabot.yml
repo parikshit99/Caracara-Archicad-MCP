@@ -1,0 +1,21 @@
+version: 2
+updates:
+  # Keep the locked Python dependencies current; the CI audit job fails on known vulnerabilities.
+  - package-ecosystem: uv
+    directory: /
+    schedule:
+      interval: weekly
+      day: thursday
+    groups:
+      python-dependencies:
+        patterns: ["*"]
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: thursday
+    groups:
+      github-actions:
+        patterns: ["*"]

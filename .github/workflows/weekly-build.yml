@@ -1,0 +1,109 @@
+name: Weekly build
+
+on:
+  schedule:
+    # Fridays 03:30 UTC (09:00 IST).
+    - cron: "30 3 * * 5"
+  workflow_dispatch:
+    inputs:
+      force:
+        description: Build even if master has not changed since the last weekly build
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: weekly-build
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  changes:
+    name: Check for changes since the last weekly build
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      changed: ${{ steps.compare.outputs.changed }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Compare master with the last successful weekly build
+        id: compare
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FORCE: ${{ inputs.force || false }}
+        # A run that skipped still records master's commit, which is the last built
+        # commit; a failed build is not "success", so the next Friday retries it.
+        run: |
+          LAST=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow weekly-build.yml --branch master \
+            --status success --limit 1 --json headSha --jq '.[0].headSha // ""')
+          if [[ "$FORCE" == "true" ]]; then
+            CHANGED=true; REASON="Forced by workflow_dispatch."
+          elif [[ -z "$LAST" ]]; then
+            CHANGED=true; REASON="No earlier successful weekly build."
+          elif [[ "$LAST" == "$GITHUB_SHA" ]]; then
+            CHANGED=false; REASON="master is still at ${LAST:0:7}, already built."
+          elif git merge-base --is-ancestor "$LAST" "$GITHUB_SHA" 2>/dev/null; then
+            CHANGED=true; REASON="$(git rev-list --count "$LAST..$GITHUB_SHA") new commit(s) since ${LAST:0:7}."
+          else
+            CHANGED=true; REASON="Last built commit ${LAST:0:7} is no longer in master's history."
+          fi
+          echo "changed=$CHANGED" >> "$GITHUB_OUTPUT"
+          {
+            echo "### Weekly build"
+            echo "- Commit: \`${GITHUB_SHA:0:7}\`"
+            echo "- Build: $([[ $CHANGED == true ]] && echo yes || echo 'skipped')"
+            echo "- Reason: $REASON"
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [[ "$CHANGED" == "true" && -n "$LAST" ]] && git cat-file -e "$LAST" 2>/dev/null; then
+            { echo; echo "#### Changes"; git log --format='- %h %s' "$LAST..$GITHUB_SHA" | head -50; } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+  ci:
+    name: CI gates
+    needs: changes
+    if: needs.changes.outputs.changed == 'true'
+    uses: ./.github/workflows/test.yml
+
+  build:
+    name: Build weekly artifacts
+    needs: [changes, ci]
+    if: needs.changes.outputs.changed == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.13"
+      - name: Compute build label
+        id: label
+        run: |
+          VERSION=$(uv run --no-project python -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])")
+          echo "value=${VERSION}-weekly.$(date -u +%Y%m%d).${GITHUB_SHA:0:7}" >> "$GITHUB_OUTPUT"
+      - uses: ./.github/actions/build-package
+        with:
+          label: ${{ steps.label.outputs.value }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: caracara-archicad-${{ steps.label.outputs.value }}
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 30
+      - name: Summarize artifacts
+        run: |
+          {
+            echo "### Weekly artifacts \`${{ steps.label.outputs.value }}\`"
+            echo '| File | Size |'
+            echo '| --- | --- |'
+            for f in dist/*; do echo "| $(basename "$f") | $(du -h "$f" | cut -f1) |"; done
+          } >> "$GITHUB_STEP_SUMMARY"

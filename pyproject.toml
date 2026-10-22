@@ -55,14 +55,52 @@ dev = [
     "httpx>=0.28.1",
     "pytest>=9.1.1",
     "pytest-asyncio>=1.4.0",
+    "pytest-cov>=7.1.0",
     "ruff>=0.16.8",
 ]
 
 [tool.ruff]
 line-length = 120
 
+[tool.ruff.lint]
+# Pinned so a ruff upgrade cannot silently change what CI enforces.
+select = [
+    "E", "W",   # pycodestyle
+    "F",        # pyflakes
+    "I",        # import sorting
+    "B",        # bugbear
+    "UP",       # pyupgrade
+    "SIM",      # simplify
+    "C4",       # comprehensions
+    "BLE",      # blind except
+    "LOG",      # logging misuse
+    "RUF",      # ruff-specific
+]
+# Generated modules are pure generator output; regenerate rather than hand-fix them.
+exclude = ["src/caracara_archicad_mcp/tools/generated/**"]
+
+[tool.ruff.lint.per-file-ignores]
+# These modules configure and log through the root logger on purpose.
+"src/caracara_archicad_mcp/server.py" = ["LOG015"]
+"src/caracara_archicad_mcp/logging_config.py" = ["LOG015"]
+# Imported for their registration side effects.
+"src/caracara_archicad_mcp/tools/__init__.py" = ["F401"]
+# Long lines here are templates of generated code.
+"scripts/generate_tools.py" = ["E501"]
+# Fixture-style defaults and nested context managers read better in tests.
+"tests/**" = ["B008", "SIM117"]
+
 [tool.ruff.format]
 indent-style = "space"
 quote-style = "double"
 line-ending = "lf"
 docstring-code-format = true
+
+[tool.coverage.run]
+source = ["caracara_archicad_mcp"]
+# Generated wrappers are exercised by test_generated_tools; measuring them dilutes the signal.
+omit = ["*/tools/generated/*"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true

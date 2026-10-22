@@ -12,3 +12,9 @@ wheels/
 
 # Packed desktop extensions
 *.mcpb
+
+# Coverage output
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
