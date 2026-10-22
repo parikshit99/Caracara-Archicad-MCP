@@ -26,6 +26,7 @@ from caracara_archicad_mcp.tools.tool_registry import override_tool_for_dispatch
 
 # Fields GetDetailsOfElements can project server-side; anything else is pruned client-side.
 SERVER_DETAIL_FIELDS = {"type", "id", "floorIndex", "layerIndex", "drawIndex", "details", "floorPlanPolygons", "hotlinkId"}
+DEFAULT_HIGHLIGHT_COLOR = [0, 120, 255, 255]
 
 
 def _dump(value: Any, **kwargs: Any) -> Any:
@@ -91,9 +92,19 @@ def delete_elements(conn_header: ConnHeader, params: DeleteElementsInput) -> dic
 
 def highlight_elements(conn_header: ConnHeader, params: HighlightElementsInput) -> dict:
     """Highlights the elements of targetSetId or the elements array; an empty array clears highlights."""
-    payload: dict[str, Any] = {"elements": _target_elements(params.target_set_id, params.elements) or []}
-    if params.highlighted_colors is not None:
-        payload["highlightedColors"] = [_dump(c) for c in params.highlighted_colors]
+    elements = _target_elements(params.target_set_id, params.elements) or []
+    colors = [_dump(c) for c in params.highlighted_colors or []]
+    # Tapir requires highlightedColors, with exactly one color per element.
+    if not elements:
+        colors = []
+    elif len(colors) <= 1:
+        colors = (colors or [DEFAULT_HIGHLIGHT_COLOR]) * len(elements)
+    elif len(colors) != len(elements):
+        raise ToolError(
+            f"highlightedColors has {len(colors)} colors for {len(elements)} elements; "
+            "give one color for all elements, or one per element."
+        )
+    payload: dict[str, Any] = {"elements": elements, "highlightedColors": colors}
     if params.wireframe_3d is not None:
         payload["wireframe3D"] = params.wireframe_3d
     if params.non_highlighted_color is not None:

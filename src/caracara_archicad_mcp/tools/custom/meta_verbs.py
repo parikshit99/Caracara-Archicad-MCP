@@ -114,6 +114,20 @@ def _itemize(result: Any, element_ids: list[dict[str, Any]], invalid: list[dict[
     return itemized
 
 
+async def _all_pages(name: str, arguments: dict[str, Any]) -> tuple[Any, list[dict[str, Any]]]:
+    """Call a paginated listing and follow next_page_token until every element is collected."""
+    result = await archicad_call_tool(name, arguments)
+    if _is_running(result):
+        return result, []
+    elements = list(result.get("elements", []))
+    token = result.get("next_page_token")
+    while token:
+        page = await archicad_call_tool(name, {**arguments, "page_token": token})
+        elements.extend(page.get("elements", []))
+        token = page.get("next_page_token")
+    return result, elements
+
+
 def _vector(payload: dict[str, Any]) -> dict[str, float]:
     vec = payload.get("vector", payload)
     if not isinstance(vec, dict):
@@ -156,16 +170,16 @@ async def archicad_query(
 
     # 1. Routing to appropriate discovery tool
     if target_lower in ("selected", "selection"):
-        raw_res = await archicad_call_tool("elements_get_selected_elements", {"port": target_port})
-        raw_elements = raw_res.get("elements", [])
+        raw_res, raw_elements = await _all_pages("elements_get_selected_elements", {"port": target_port})
         element_type = "Selected"
 
     elif target_lower in ("all", "all_elements", "elements"):
         params: dict[str, Any] = {}
         if filter and "filters" in filter:
             params["filters"] = filter["filters"]
-        raw_res = await archicad_call_tool("elements_get_all_elements", {"port": target_port, "params": params})
-        raw_elements = raw_res.get("elements", [])
+        raw_res, raw_elements = await _all_pages(
+            "elements_get_all_elements", {"port": target_port, "params": params}
+        )
         element_type = "Element"
 
     elif target_lower in ("classified", "classification") or (filter and "classificationItemId" in filter):

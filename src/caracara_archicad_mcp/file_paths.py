@@ -80,7 +80,10 @@ def confine_path(raw_path: str) -> str:
             f"File path '{raw_path}' is outside the allowed output directory '{root}'. "
             "Use a path inside it, or a relative path to place the file there."
         )
+    # Archicad does not create missing folders, so make the target's parent (always inside root).
     root.mkdir(parents=True, exist_ok=True)
+    if resolved != root:
+        resolved.parent.mkdir(parents=True, exist_ok=True)
     return str(resolved)
 
 

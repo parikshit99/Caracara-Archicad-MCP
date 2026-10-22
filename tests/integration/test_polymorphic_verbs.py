@@ -5,6 +5,7 @@ from mcp.server.mcpserver.exceptions import ToolError
 
 from caracara_archicad_mcp.app import mcp
 from caracara_archicad_mcp.result_registry import ResultRegistry
+from caracara_archicad_mcp.tools.overrides import DEFAULT_HIGHLIGHT_COLOR
 from caracara_archicad_mcp.tools.custom.meta_verbs import archicad_mutate, archicad_query
 
 
@@ -135,7 +136,7 @@ async def test_archicad_mutate_highlight_via_target_set(fake_archicad):
     assert res == {"executionResults": [{"success": True}]}
     assert fake_archicad.calls[-1] == (
         "HighlightElements",
-        {"elements": elements, "wireframe3D": True},
+        {"elements": elements, "highlightedColors": [DEFAULT_HIGHLIGHT_COLOR], "wireframe3D": True},
     )
 
 
