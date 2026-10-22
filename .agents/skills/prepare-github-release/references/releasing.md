@@ -1,5 +1,26 @@
 # Release procedure
 
+## Automatic releases
+
+-   **Monthly stable release** (`.github/workflows/monthly-release.yml`): on the
+    first Friday of each month at 04:30 UTC, if `master` has commits since the
+    last `v*` tag, CI runs every gate, bumps the version to `YEAR.MONTH.PATCH`
+    (for example `2026.11.0`; PATCH counts releases already made that month),
+    commits and tags it on `master` as `github-actions[bot]`, publishes the
+    GitHub release with generated notes and all files, and uploads to PyPI.
+    The push is atomic and is rejected if `master` moved after the gates ran.
+    Run it manually with `dry_run` (the default) to rehearse without pushing,
+    or with `force` to release outside the schedule.
+-   **Weekly pre-release** (`.github/workflows/weekly-build.yml`): every Friday,
+    if `master` changed, the rolling `weekly` pre-release is replaced with a
+    fresh build. It is never published to PyPI.
+
+PyPI uploads from the monthly workflow need a Trusted Publisher entry for the
+workflow filename `monthly-release.yml`; until one exists, that step fails
+without failing the release.
+
+## Manual releases
+
 The local helper requires Python 3.12+, `uv`, Git and an authenticated GitHub CLI
 (`gh auth login`). It can be run directly or through an agent using this skill.
 
