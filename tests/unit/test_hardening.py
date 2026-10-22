@@ -18,6 +18,7 @@ from caracara_archicad_mcp import file_paths
 from caracara_archicad_mcp.context import multi_conn_instance
 from caracara_archicad_mcp.field_masking import prune_payload
 from caracara_archicad_mcp.result_registry import STORAGE_SETS, ResultRegistry
+from caracara_archicad_mcp.tools import overrides
 from caracara_archicad_mcp.tools.custom import meta_verbs
 from caracara_archicad_mcp.tools.custom.functions import archicad_call_tool
 from caracara_archicad_mcp.tools.custom.meta_verbs import archicad_mutate, archicad_query
@@ -336,3 +337,59 @@ async def test_http_mock_tapir_error_becomes_job_failure_not_crash(http_archicad
 
     with pytest.raises(ToolError, match="No project open"):
         await archicad_call_tool("elements_get_selected_elements", {"port": 19723})
+
+
+# --- Regressions found against a live Archicad -----------------------------------
+
+
+@pytest.mark.asyncio
+async def test_query_all_follows_every_page(monkeypatch):
+    pages = {
+        None: {"elements": [{"elementId": {"guid": f"a{i}"}} for i in range(100)], "next_page_token": "t:100"},
+        "t:100": {"elements": [{"elementId": {"guid": f"b{i}"}} for i in range(100)], "next_page_token": "t:200"},
+        "t:200": {"elements": [{"elementId": {"guid": "c"}}]},
+    }
+
+    async def paged(name, arguments):
+        return pages[arguments.get("page_token")]
+
+    monkeypatch.setattr(meta_verbs, "archicad_call_tool", paged)
+    result = await archicad_query("all")
+    assert result["count"] == 201
+    assert ResultRegistry.count(result["setId"]) == 201
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(("colors", "expected"), [
+    (None, [overrides.DEFAULT_HIGHLIGHT_COLOR] * 2),
+    ([[255, 0, 0, 128]], [[255, 0, 0, 128]] * 2),
+    ([[1, 1, 1, 1], [2, 2, 2, 2]], [[1, 1, 1, 1], [2, 2, 2, 2]]),
+])
+async def test_highlight_sends_one_color_per_element(fake_archicad, colors, expected):
+    fake_archicad.on_tapir_command("HighlightElements", {"success": True})
+    params = {"elements": [{"elementId": {"guid": ALIVE}}, {"elementId": {"guid": GHOST}}]}
+    if colors is not None:
+        params["highlightedColors"] = colors
+    await archicad_call_tool("elements_highlight_elements", {"port": fake_archicad.port, "params": params})
+    assert fake_archicad.calls[-1][1]["highlightedColors"] == expected
+
+
+@pytest.mark.asyncio
+async def test_clearing_highlights_still_sends_required_colors_field(fake_archicad):
+    fake_archicad.on_tapir_command("HighlightElements", {"success": True})
+    await archicad_call_tool("elements_highlight_elements", {"port": fake_archicad.port, "params": {"elements": []}})
+    assert fake_archicad.calls[-1][1] == {"elements": [], "highlightedColors": []}
+
+
+@pytest.mark.asyncio
+async def test_highlight_color_count_mismatch_is_a_tool_error(fake_archicad):
+    params = {"elements": [{"elementId": {"guid": ALIVE}}], "highlightedColors": [[1, 1, 1, 1], [2, 2, 2, 2]]}
+    with pytest.raises(ToolError, match="2 colors for 1 elements"):
+        await archicad_call_tool("elements_highlight_elements", {"port": fake_archicad.port, "params": params})
+    assert fake_archicad.calls == []
+
+
+def test_confined_path_creates_missing_parent_folders(output_root):
+    resolved = Path(file_paths.confine_path("exports/nested/window.png"))
+    assert resolved.parent.is_dir()
+    assert resolved.parent.is_relative_to(output_root)

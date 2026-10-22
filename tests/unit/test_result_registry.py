@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 
 from caracara_archicad_mcp.result_registry import STORAGE_SETS, ResultRegistry
 from caracara_archicad_mcp.tools.custom.functions import archicad_call_tool
+from caracara_archicad_mcp.tools.overrides import DEFAULT_HIGHLIGHT_COLOR
 
 
 @pytest.fixture(autouse=True)
@@ -143,7 +144,7 @@ async def test_mutation_highlight_elements_with_target_set_id(fake_archicad):
     assert result == {"executionResults": [{"success": True}]}
     assert fake_archicad.calls[-1] == (
         "HighlightElements",
-        {"elements": elements},
+        {"elements": elements, "highlightedColors": [DEFAULT_HIGHLIGHT_COLOR] * len(elements)},
     )
 
 
@@ -163,7 +164,7 @@ async def test_mutation_highlight_elements_with_top_level_target_set_id(fake_arc
     assert result == {"executionResults": [{"success": True}]}
     assert fake_archicad.calls[-1] == (
         "HighlightElements",
-        {"elements": elements},
+        {"elements": elements, "highlightedColors": [DEFAULT_HIGHLIGHT_COLOR] * len(elements)},
     )
 
 
