@@ -1,0 +1,173 @@
+name: Monthly stable release
+
+on:
+  schedule:
+    # Days 1-7 at 04:30 UTC (10:00 IST); the plan job proceeds only on the Friday,
+    # so this is the first Friday of each month, an hour after the weekly build.
+    - cron: "30 4 1-7 * *"
+  workflow_dispatch:
+    inputs:
+      force:
+        description: Release now even if it is not the first Friday or master has not changed
+        type: boolean
+        default: false
+      dry_run:
+        description: Run gates and build, but do not push, tag, release or upload
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: monthly-release
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  plan:
+    name: Decide whether to release
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      release: ${{ steps.plan.outputs.release }}
+      version: ${{ steps.plan.outputs.version }}
+      previous: ${{ steps.plan.outputs.previous }}
+      sha: ${{ steps.plan.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+      - name: Plan the release
+        id: plan
+        env:
+          FORCE: ${{ inputs.force || false }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          if [[ "$GITHUB_REF" != "refs/heads/master" ]]; then
+            echo "::error::Stable releases are cut from master only (this run is on $GITHUB_REF)."
+            exit 1
+          fi
+          SHA=$(git rev-parse HEAD)
+          PREVIOUS=$(git describe --tags --abbrev=0 --match 'v[0-9]*' 2>/dev/null || true)
+          COUNT=$([[ -n "$PREVIOUS" ]] && git rev-list --count "$PREVIOUS..HEAD" || git rev-list --count HEAD)
+
+          # Calendar version YEAR.MONTH.PATCH; PATCH counts releases already made this month.
+          YEAR=$(date -u +%Y); MONTH=$((10#$(date -u +%m)))
+          PATCH=0
+          while git rev-parse -q --verify "refs/tags/v$YEAR.$MONTH.$PATCH" >/dev/null; do PATCH=$((PATCH + 1)); done
+          VERSION="$YEAR.$MONTH.$PATCH"
+
+          if [[ "$FORCE" == "true" ]]; then
+            RELEASE=true; REASON="Forced by workflow_dispatch."
+          elif [[ "$EVENT" == "schedule" && "$(date -u +%u)" != "5" ]]; then
+            RELEASE=false; REASON="Not a Friday."
+          elif [[ "$COUNT" == "0" ]]; then
+            RELEASE=false; REASON="No commits on master since $PREVIOUS."
+          else
+            RELEASE=true; REASON="$COUNT commit(s) since ${PREVIOUS:-the start of history}."
+          fi
+
+          {
+            echo "release=$RELEASE"
+            echo "version=$VERSION"
+            echo "previous=$PREVIOUS"
+            echo "sha=$SHA"
+          } >> "$GITHUB_OUTPUT"
+          {
+            echo "### Monthly stable release"
+            echo "- Release: $([[ $RELEASE == true ]] && echo "yes, v$VERSION" || echo skipped)"
+            echo "- Reason: $REASON"
+            echo "- Commit: \`${SHA:0:7}\`, previous release: \`${PREVIOUS:-none}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  ci:
+    name: CI gates
+    needs: plan
+    if: needs.plan.outputs.release == 'true'
+    uses: ./.github/workflows/test.yml
+
+  release:
+    name: Bump, tag and publish v${{ needs.plan.outputs.version }}
+    needs: [plan, ci]
+    if: needs.plan.outputs.release == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+      id-token: write
+    env:
+      VERSION: ${{ needs.plan.outputs.version }}
+      TAG: v${{ needs.plan.outputs.version }}
+      PREVIOUS: ${{ needs.plan.outputs.previous }}
+      DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+    steps:
+      # Release exactly the commit the gates passed on; pushing fails if master moved.
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.plan.outputs.sha }}
+          fetch-depth: 0
+          fetch-tags: true
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.13"
+          enable-cache: true
+      - name: Bump versions in pyproject.toml, manifest.json and uv.lock
+        run: |
+          uv run --locked python scripts/release.py bump "$VERSION"
+          uv run --locked python scripts/release.py check --tag "$TAG"
+      - name: Re-run tests on the bumped tree
+        run: uv run --locked pytest tests -q -p no:cacheprovider
+      - name: Commit the release
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "chore(release): $TAG"
+          git tag -a "$TAG" -m "$TAG monthly stable release"
+      - uses: ./.github/actions/build-package
+        with:
+          label: ${{ env.VERSION }}
+      - name: Check the wheel reports the release version
+        run: |
+          WHEEL=$(find "$GITHUB_WORKSPACE/dist" -name '*.whl')
+          cd "$RUNNER_TEMP"
+          uv run --no-project --with "$WHEEL" python -I -c "from importlib.metadata import version; assert version('caracara-archicad-mcp') == '$VERSION', version('caracara-archicad-mcp')"
+      - name: Add the fixed-name bundle alias
+        run: cp "dist/caracara-archicad-$VERSION.mcpb" dist/caracara-archicad.mcpb
+      - name: Push the release commit and tag
+        if: env.DRY_RUN != 'true'
+        # Atomic: both land or neither does. Rejected if master moved since the gates ran.
+        run: git push --atomic origin "HEAD:refs/heads/master" "refs/tags/$TAG"
+      - name: Create the GitHub release
+        if: env.DRY_RUN != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        # Made with GITHUB_TOKEN, so release.yml is not triggered and nothing publishes twice.
+        run: |
+          printf 'Monthly stable release, built automatically from `master` on the first Friday of the month.\n' > "$RUNNER_TEMP/notes.md"
+          ARGS=(--generate-notes --notes-file "$RUNNER_TEMP/notes.md")
+          [[ -n "$PREVIOUS" ]] && ARGS+=(--notes-start-tag "$PREVIOUS")
+          gh release create "$TAG" dist/* --repo "$GITHUB_REPOSITORY" --verify-tag --latest \
+            --title "$TAG Release" "${ARGS[@]}"
+      - name: Publish Python distributions with PyPI Trusted Publishing
+        if: env.DRY_RUN != 'true'
+        continue-on-error: true
+        run: uv publish --trusted-publishing always --check-url https://pypi.org/simple dist/*.whl dist/*.tar.gz
+      - name: Summarize
+        run: |
+          {
+            if [[ "$DRY_RUN" == "true" ]]; then
+              echo "### Dry run for $TAG: nothing was pushed, tagged, released or uploaded"
+            else
+              echo "### Released $TAG"
+              echo "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/tag/$TAG"
+            fi
+            echo
+            echo '| File | Size |'
+            echo '| --- | --- |'
+            for f in dist/*; do echo "| $(basename "$f") | $(du -h "$f" | cut -f1) |"; done
+          } >> "$GITHUB_STEP_SUMMARY"

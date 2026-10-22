@@ -28,7 +28,9 @@ def test_generated_modules_only_import_the_registry_from_this_package():
     allowed = {"caracara_archicad_mcp.tools.tool_registry", "caracara_archicad_mcp.tools.generated"}
     offenders = []
     for path in GENERATED.rglob("*.py"):
-        for module in re.findall(r"^from (caracara_archicad_mcp\S*) import", path.read_text(encoding="utf-8"), re.MULTILINE):
+        for module in re.findall(
+            r"^from (caracara_archicad_mcp\S*) import", path.read_text(encoding="utf-8"), re.MULTILINE
+        ):
             if not any(module == a or module.startswith(a + ".") for a in allowed):
                 offenders.append(f"{path.relative_to(GENERATED)}: {module}")
     assert offenders == []
@@ -52,7 +54,9 @@ def test_overriding_an_unknown_command_fails_loudly():
 
 
 def test_generator_writes_into_the_caracara_package():
-    spec = importlib.util.spec_from_file_location("generator_config_under_test", ROOT / "scripts" / "generator_config.py")
+    spec = importlib.util.spec_from_file_location(
+        "generator_config_under_test", ROOT / "scripts" / "generator_config.py"
+    )
     config = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(config)
     for source in (config.TAPIR_CONFIG, config.OFFICIAL_CONFIG):

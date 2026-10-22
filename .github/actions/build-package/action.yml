@@ -1,0 +1,37 @@
+name: Build and verify package
+description: >-
+  Builds the wheel, sdist and MCPB bundle, checks their metadata, and imports the
+  wheel outside the checkout. Expects uv to be set up already.
+
+inputs:
+  label:
+    description: Version label used in the MCPB file name.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Build Python distributions
+      shell: bash
+      run: uv build --no-sources --no-create-gitignore
+
+    - name: Check distribution metadata
+      shell: bash
+      run: uv tool run --from twine==7.0.0 twine check --strict dist/*
+
+    - name: Import the wheel outside the checkout
+      shell: bash
+      run: |
+        WHEEL=$(find "$GITHUB_WORKSPACE/dist" -name '*.whl')
+        cd "$RUNNER_TEMP"
+        uv run --no-project --with "$WHEEL" python -I -c "import caracara_archicad_mcp.server, tapir_archicad_mcp.server"
+
+    - uses: actions/setup-node@v4
+      with:
+        node-version: "22"
+
+    - name: Validate and pack the MCPB bundle
+      shell: bash
+      run: |
+        npx --yes @anthropic-ai/mcpb@2.1.2 validate manifest.json
+        npx --yes @anthropic-ai/mcpb@2.1.2 pack . "dist/caracara-archicad-${{ inputs.label }}.mcpb"

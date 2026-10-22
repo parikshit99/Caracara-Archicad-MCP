@@ -1,0 +1,5 @@
+# Normalize line endings so ruff (line-ending = "lf") and CI agree on every OS.
+* text=auto eol=lf
+*.png binary
+*.ico binary
+*.mcpb binary

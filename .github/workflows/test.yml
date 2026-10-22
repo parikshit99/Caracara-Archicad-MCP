@@ -6,18 +6,92 @@ on:
   pull_request:
     branches: [master]
   workflow_dispatch:
+  # The Friday build runs the same gates before packaging.
+  workflow_call:
 
 permissions:
   contents: read
 
+concurrency:
+  # Superseded pushes to a pull request cancel the older run; master and called runs never cancel.
+  group: ci-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+defaults:
+  run:
+    shell: bash
+
 jobs:
+  quality:
+    name: Lint, format and project checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.13"
+          enable-cache: true
+      - name: Check the lock file matches pyproject.toml
+        run: uv lock --check
+      - name: Install locked dependencies
+        run: uv sync --locked
+      - name: Lint
+        run: uv run --locked ruff check --output-format=github src tests scripts
+      - name: Check formatting
+        run: uv run --locked ruff format --check src tests scripts
+      - name: Check Python package and MCPB versions agree
+        run: >-
+          uv run --locked python -c
+          "import json, tomllib; from pathlib import Path;
+          assert tomllib.loads(Path('pyproject.toml').read_text())['project']['version']
+          == json.loads(Path('manifest.json').read_text())['version'],
+          'Python package and MCPB versions differ'"
+
+  generated:
+    name: Generated tools match the generator
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.13"
+          enable-cache: true
+      - run: uv sync --locked
+      - name: Regenerate from the pinned multiconn release
+        run: uv run --locked python scripts/generate_tools.py
+      - name: Fail on hand edits or stale output
+        run: |
+          if ! git diff --exit-code --stat -- src/caracara_archicad_mcp/tools/generated; then
+            echo "::error::Generated tools differ from generator output. Move custom behaviour to tools/overrides.py and regenerate."
+            exit 1
+          fi
+
+  audit:
+    name: Dependency vulnerability audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.13"
+      - name: Audit locked runtime dependencies
+        run: |
+          uv export --locked --no-dev --no-emit-project --no-hashes --format requirements-txt -o "$RUNNER_TEMP/requirements.txt"
+          uvx pip-audit==2.10.1 --requirement "$RUNNER_TEMP/requirements.txt" --no-deps --disable-pip --progress-spinner off
+
   test:
+    name: Tests (${{ matrix.os }}, Python ${{ matrix.python-version }})
+    needs: quality
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, macos-latest]
+        os: [ubuntu-latest, windows-latest, macos-latest]
         python-version: ["3.12", "3.13", "3.14"]
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
@@ -26,12 +100,19 @@ jobs:
           enable-cache: true
       - name: Install locked dependencies
         run: uv sync --locked
-      - name: Check Python package and MCPB versions agree
-        run: >-
-          uv run --locked python -c
-          "import json, tomllib; from pathlib import Path;
-          assert tomllib.loads(Path('pyproject.toml').read_text())['project']['version']
-          == json.loads(Path('manifest.json').read_text())['version'],
-          'Python package and MCPB versions differ'"
-      - name: Run tests
-        run: uv run --locked pytest tests
+      - name: Run tests with coverage
+        run: uv run --locked pytest tests -ra --strict-markers --cov --cov-report=term --cov-fail-under=85
+
+  package:
+    name: Build and verify package
+    needs: quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.13"
+      - uses: ./.github/actions/build-package
+        with:
+          label: ci-${{ github.sha }}

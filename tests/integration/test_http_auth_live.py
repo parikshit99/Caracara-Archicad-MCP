@@ -66,9 +66,7 @@ async def test_live_sse_server_enforces_token():
             assert response.headers.get("www-authenticate") == "Bearer"
 
             # With the token the request must reach the SSE endpoint
-            async with client.stream(
-                "GET", url, headers={"Authorization": f"Bearer {token}"}
-            ) as response:
+            async with client.stream("GET", url, headers={"Authorization": f"Bearer {token}"}) as response:
                 assert response.status_code == 200
                 assert "text/event-stream" in response.headers.get("content-type", "")
     finally:

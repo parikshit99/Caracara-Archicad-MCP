@@ -128,8 +128,7 @@ def prune_payload(
             if key in payload and isinstance(payload[key], list):
                 found_target_list = True
                 result[key] = [
-                    project_element(elem, fields) if isinstance(elem, dict) else elem
-                    for elem in payload[key]
+                    project_element(elem, fields) if isinstance(elem, dict) else elem for elem in payload[key]
                 ]
 
         if not found_target_list:
@@ -139,9 +138,6 @@ def prune_payload(
         return result
 
     if isinstance(payload, list):
-        return [
-            project_element(elem, fields) if isinstance(elem, dict) else elem
-            for elem in payload
-        ]
+        return [project_element(elem, fields) if isinstance(elem, dict) else elem for elem in payload]
 
     return payload

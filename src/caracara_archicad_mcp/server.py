@@ -84,17 +84,20 @@ def parse_args() -> argparse.Namespace:
         help="Bearer token required for HTTP-based transports. Ignored for stdio.",
     )
     parser.add_argument(
-        "--async-threshold-seconds", type=_positive_float,
+        "--async-threshold-seconds",
+        type=_positive_float,
         default=_env("ASYNC_THRESHOLD_SECONDS", "45"),
         help="Maximum execution/poll wait before returning a running JobHandle (default: 45 seconds).",
     )
     parser.add_argument(
-        "--job-ttl-seconds", type=_nonnegative_float,
+        "--job-ttl-seconds",
+        type=_nonnegative_float,
         default=_env("JOB_TTL_SECONDS", "86400"),
         help="Completed-job and page lifetime after completion; 0 disables age expiry (default: 86400).",
     )
     parser.add_argument(
-        "--max-completed-jobs", type=_positive_int,
+        "--max-completed-jobs",
+        type=_positive_int,
         default=_env("MAX_COMPLETED_JOBS", "128"),
         help="Maximum retained completed/failed jobs; oldest are evicted with their pages (default: 128).",
     )
@@ -159,7 +162,7 @@ def main():
         args.host,
         args.port,
         args.streamable_http_path,
-        args.mount_path
+        args.mount_path,
     )
 
     # MCPServer configures HTTP options on its transport methods.
@@ -183,6 +186,7 @@ def main():
         mcp.run(transport="stdio")
     else:
         mcp.run(transport=args.transport, port=args.port, **http_options)
+
 
 if __name__ == "__main__":
     main()

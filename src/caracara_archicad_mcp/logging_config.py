@@ -20,9 +20,7 @@ def setup_logging():
     """
     LOG_DIR.mkdir(parents=True, exist_ok=True)
 
-    log_formatter = logging.Formatter(
-        '%(asctime)s - %(levelname)s - %(name)s - %(message)s'
-    )
+    log_formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(name)s - %(message)s")
 
     root_logger = logging.getLogger()
     root_logger.setLevel(logging.INFO)
@@ -33,7 +31,7 @@ def setup_logging():
         LOG_FILE,
         maxBytes=5 * 1024 * 1024,  # 5 MB
         backupCount=5,
-        encoding='utf-8'
+        encoding="utf-8",
     )
     file_handler.setFormatter(log_formatter)
 

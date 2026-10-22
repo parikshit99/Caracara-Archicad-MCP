@@ -189,9 +189,7 @@ class ResultRegistry:
     def _evict_excess(cls) -> int:
         """Evict least recently used sets while over the set capacity or element budget."""
         evicted = 0
-        while STORAGE_SETS and (
-            len(STORAGE_SETS) > cls.MAX_CAPACITY or cls._total_elements() > cls.MAX_TOTAL_ELEMENTS
-        ):
+        while STORAGE_SETS and (len(STORAGE_SETS) > cls.MAX_CAPACITY or cls._total_elements() > cls.MAX_TOTAL_ELEMENTS):
             cls._delete_unlocked(next(iter(STORAGE_SETS)))
             evicted += 1
         return evicted
@@ -212,10 +210,7 @@ class ResultRegistry:
         """Normalize an element type name into a clean pluralized snake_case token prefix."""
         if element_type is None:
             return "elements"
-        if hasattr(element_type, "value"):
-            raw_str = str(element_type.value)
-        else:
-            raw_str = str(element_type)
+        raw_str = str(element_type.value) if hasattr(element_type, "value") else str(element_type)
         cleaned = re.sub(r"[^a-zA-Z0-9_]", "", raw_str).lower()[:_MAX_PREFIX_LENGTH]
         if not cleaned:
             return "elements"

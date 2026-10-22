@@ -167,12 +167,19 @@ async def test_deleted_element_in_set_is_itemized_not_raised(fake_archicad):
     set_id = ResultRegistry.register(
         [{"elementId": {"guid": ALIVE}}, {"elementId": {"guid": GHOST}}], element_type="Wall"
     )
-    fake_archicad.on_tapir_command("SetDetailsOfElements", {"executionResults": [
-        {"success": True},
-        {"success": False, "error": {"code": -2130312312, "message": "Element not found."}},
-    ]})
+    fake_archicad.on_tapir_command(
+        "SetDetailsOfElements",
+        {
+            "executionResults": [
+                {"success": True},
+                {"success": False, "error": {"code": -2130312312, "message": "Element not found."}},
+            ]
+        },
+    )
 
-    result = await archicad_mutate(set_id, "set_details", {"details": {"floorIndex": 0, "layerIndex": 2}}, port=fake_archicad.port)
+    result = await archicad_mutate(
+        set_id, "set_details", {"details": {"floorIndex": 0, "layerIndex": 2}}, port=fake_archicad.port
+    )
 
     assert result["failedCount"] == 1
     assert result["failedElements"] == [
@@ -193,13 +200,16 @@ async def test_malformed_set_entries_are_skipped_and_reported(fake_archicad):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize(("action", "payload", "command"), [
-    ("delete", None, "DeleteElements"),
-    ("move", {"vector": {"x": 1, "y": 0, "z": 0}}, "MoveElements"),
-    ("rotate", {"rotation": ROTATION}, "RotateElements"),
-    ("set_details", {"details": {"floorIndex": 0, "layerIndex": 1}}, "SetDetailsOfElements"),
-    ("set_property", {"propertyId": {"guid": "p"}, "propertyValue": {"value": 0}}, "SetPropertyValuesOfElements"),
-])
+@pytest.mark.parametrize(
+    ("action", "payload", "command"),
+    [
+        ("delete", None, "DeleteElements"),
+        ("move", {"vector": {"x": 1, "y": 0, "z": 0}}, "MoveElements"),
+        ("rotate", {"rotation": ROTATION}, "RotateElements"),
+        ("set_details", {"details": {"floorIndex": 0, "layerIndex": 1}}, "SetDetailsOfElements"),
+        ("set_property", {"propertyId": {"guid": "p"}, "propertyValue": {"value": 0}}, "SetPropertyValuesOfElements"),
+    ],
+)
 async def test_each_mutation_is_one_tapir_command(fake_archicad, action, payload, command):
     """Tapir wraps one command in one undoable operation, so a batch must be one call."""
     set_id = ResultRegistry.register([{"elementId": {"guid": _guid(i)}} for i in range(25)], element_type="Wall")
@@ -215,10 +225,17 @@ async def test_falsy_property_values_are_sent_unchanged(fake_archicad):
     set_id = ResultRegistry.register([{"elementId": {"guid": "g"}}], element_type="Wall")
     fake_archicad.on_tapir_command("SetPropertyValuesOfElements", {"executionResults": [{"success": True}] * 2})
 
-    await archicad_mutate(set_id, "set_property", {"propertyValues": [
-        {"propertyId": {"guid": "p1"}, "propertyValue": 0},
-        {"propertyId": {"guid": "p2"}, "propertyValue": False},
-    ]}, port=fake_archicad.port)
+    await archicad_mutate(
+        set_id,
+        "set_property",
+        {
+            "propertyValues": [
+                {"propertyId": {"guid": "p1"}, "propertyValue": 0},
+                {"propertyId": {"guid": "p2"}, "propertyValue": False},
+            ]
+        },
+        port=fake_archicad.port,
+    )
 
     sent = fake_archicad.calls[-1][1]["elementPropertyValues"]
     assert [item["propertyValue"] for item in sent] == [0, False]
@@ -273,18 +290,23 @@ def test_validation_errors_are_grouped_by_type_and_field():
 
     groups = group_validation_errors(caught.value)
     assert groups[0] == {
-        "error": "float_parsing", "field": "items.*.height",
-        "message": groups[0]["message"], "occurrences": 42, "input": "tall",
+        "error": "float_parsing",
+        "field": "items.*.height",
+        "message": groups[0]["message"],
+        "occurrences": 42,
+        "input": "tall",
     }
     assert groups[1]["error"] == "missing"
     assert len(summarize_validation_error(caught.value)) < 400
 
 
 def test_projection_ignores_missing_fields_and_keeps_element_errors():
-    payload = {"detailsOfElements": [
-        {"type": "Wall", "floorIndex": 0, "details": {"polygonOutline": [[0, 0]] * 500}, "memo": "x"},
-        {"error": {"code": -1, "message": "Element not found."}},
-    ]}
+    payload = {
+        "detailsOfElements": [
+            {"type": "Wall", "floorIndex": 0, "details": {"polygonOutline": [[0, 0]] * 500}, "memo": "x"},
+            {"error": {"code": -1, "message": "Element not found."}},
+        ]
+    }
     pruned = prune_payload(payload, ["type", "doesNotExist", "storyIndex"])
     assert pruned["detailsOfElements"] == [
         {"type": "Wall", "storyIndex": 0},
@@ -322,9 +344,14 @@ async def test_http_mock_serves_queries_over_loopback(http_archicad):
 @pytest.mark.asyncio
 async def test_http_mock_mutation_with_ghost_element(http_archicad):
     set_id = ResultRegistry.register([{"elementId": {"guid": "gone"}}], element_type="Wall")
-    http_archicad.on_tapir_command("DeleteElements", {"executionResults": [
-        {"success": False, "error": {"code": 1, "message": "Element does not exist."}},
-    ]})
+    http_archicad.on_tapir_command(
+        "DeleteElements",
+        {
+            "executionResults": [
+                {"success": False, "error": {"code": 1, "message": "Element does not exist."}},
+            ]
+        },
+    )
 
     result = await archicad_mutate(set_id, "delete", port=19723)
 
@@ -360,11 +387,14 @@ async def test_query_all_follows_every_page(monkeypatch):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize(("colors", "expected"), [
-    (None, [overrides.DEFAULT_HIGHLIGHT_COLOR] * 2),
-    ([[255, 0, 0, 128]], [[255, 0, 0, 128]] * 2),
-    ([[1, 1, 1, 1], [2, 2, 2, 2]], [[1, 1, 1, 1], [2, 2, 2, 2]]),
-])
+@pytest.mark.parametrize(
+    ("colors", "expected"),
+    [
+        (None, [overrides.DEFAULT_HIGHLIGHT_COLOR] * 2),
+        ([[255, 0, 0, 128]], [[255, 0, 0, 128]] * 2),
+        ([[1, 1, 1, 1], [2, 2, 2, 2]], [[1, 1, 1, 1], [2, 2, 2, 2]]),
+    ],
+)
 async def test_highlight_sends_one_color_per_element(fake_archicad, colors, expected):
     fake_archicad.on_tapir_command("HighlightElements", {"success": True})
     params = {"elements": [{"elementId": {"guid": ALIVE}}, {"elementId": {"guid": GHOST}}]}

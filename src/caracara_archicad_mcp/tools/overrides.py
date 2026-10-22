@@ -25,7 +25,16 @@ from caracara_archicad_mcp.tools.custom.models import (
 from caracara_archicad_mcp.tools.tool_registry import override_tool_for_dispatch
 
 # Fields GetDetailsOfElements can project server-side; anything else is pruned client-side.
-SERVER_DETAIL_FIELDS = {"type", "id", "floorIndex", "layerIndex", "drawIndex", "details", "floorPlanPolygons", "hotlinkId"}
+SERVER_DETAIL_FIELDS = {
+    "type",
+    "id",
+    "floorIndex",
+    "layerIndex",
+    "drawIndex",
+    "details",
+    "floorPlanPolygons",
+    "hotlinkId",
+}
 DEFAULT_HIGHLIGHT_COLOR = [0, 120, 255, 255]
 
 
@@ -136,10 +145,12 @@ def set_property_values_of_elements(conn_header: ConnHeader, params: SetProperty
             if not isinstance(d, dict):
                 raise ToolError("Each property value must be an object with propertyId and propertyValue.")
             # Look keys up by presence, not truthiness: 0, False and "" are valid property values.
-            items_to_apply.append({
-                "propertyId": d["propertyId"] if "propertyId" in d else d.get("property_id"),
-                "propertyValue": d["propertyValue"] if "propertyValue" in d else d.get("property_value"),
-            })
+            items_to_apply.append(
+                {
+                    "propertyId": d["propertyId"] if "propertyId" in d else d.get("property_id"),
+                    "propertyValue": d["propertyValue"] if "propertyValue" in d else d.get("property_value"),
+                }
+            )
     else:
         raise ToolError("When 'targetSetId' is provided, propertyId/propertyValue or propertyValues must be specified.")
 
@@ -161,9 +172,7 @@ def set_property_values_of_elements(conn_header: ConnHeader, params: SetProperty
 
 def get_details_of_elements(conn_header: ConnHeader, params: GetDetailsOfElementsInput) -> dict:
     """Gets element details; 'fields' returns only those fields and prunes the rest (geometry, memos)."""
-    tapir_params: dict[str, Any] = {
-        "elements": [_dump(e, mode="json", exclude_none=True) for e in params.elements]
-    }
+    tapir_params: dict[str, Any] = {"elements": [_dump(e, mode="json", exclude_none=True) for e in params.elements]}
     if params.fields and all(f in SERVER_DETAIL_FIELDS for f in params.fields):
         tapir_params["fields"] = list(params.fields)
 
@@ -181,46 +190,59 @@ def get_details_of_properties(conn_header: ConnHeader, params: GetDetailsOfPrope
 
 
 override_tool_for_dispatch(
-    "elements_get_elements_by_type", get_elements_by_type,
+    "elements_get_elements_by_type",
+    get_elements_by_type,
     description=(
         "Returns every element of the given type as a virtual set receipt (setId, count, elementType). "
         "Use the optional filter parameter for filtering."
     ),
 )
 override_tool_for_dispatch(
-    "elements_filter_elements", filter_elements,
+    "elements_filter_elements",
+    filter_elements,
     description="Tests elements by the given criterias and returns the matches as a virtual set receipt.",
 )
 override_tool_for_dispatch(
-    "elements_get_elements_by_classification", get_elements_by_classification,
+    "elements_get_elements_by_classification",
+    get_elements_by_classification,
     description="Returns every element with the given classification as a virtual set receipt.",
 )
 override_tool_for_dispatch(
-    "elements_delete_elements", delete_elements, DeleteElementsInput,
+    "elements_delete_elements",
+    delete_elements,
+    DeleteElementsInput,
     description=(
         "Deletes elements. Accepts targetSetId or explicit elements array. Returns an execution result for each "
         "input element."
     ),
 )
 override_tool_for_dispatch(
-    "elements_highlight_elements", highlight_elements, HighlightElementsInput,
+    "elements_highlight_elements",
+    highlight_elements,
+    HighlightElementsInput,
     description=(
         "Highlights the elements given in targetSetId or elements array. In case of empty elements array removes "
         "all previously set highlights."
     ),
 )
 override_tool_for_dispatch(
-    "properties_set_property_values_of_elements", set_property_values_of_elements, SetPropertyValuesOfElementsInput,
+    "properties_set_property_values_of_elements",
+    set_property_values_of_elements,
+    SetPropertyValuesOfElementsInput,
     description="Sets the property values of elements. Accepts targetSetId or explicit elementPropertyValues.",
 )
 override_tool_for_dispatch(
-    "elements_get_details_of_elements", get_details_of_elements, GetDetailsOfElementsInput,
+    "elements_get_details_of_elements",
+    get_details_of_elements,
+    GetDetailsOfElementsInput,
     description=(
         "Gets the details of the given elements (geometry parameters etc). Use the optional fields parameter to "
         "return only the fields you need and prune unrequested properties (e.g. polygonVertices, internalMemos)."
     ),
 )
 override_tool_for_dispatch(
-    "properties_get_details_of_properties", get_details_of_properties, GetDetailsOfPropertiesInput,
+    "properties_get_details_of_properties",
+    get_details_of_properties,
+    GetDetailsOfPropertiesInput,
     description="Returns the details of property definitions with optional field projection.",
 )
