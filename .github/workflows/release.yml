@@ -71,9 +71,10 @@ jobs:
           npx --yes @anthropic-ai/mcpb@2.1.2 validate manifest.json
           npx --yes @anthropic-ai/mcpb@2.1.2 pack . "dist/caracara-archicad-${RELEASE_TAG#v}.mcpb"
           cp "dist/caracara-archicad-${RELEASE_TAG#v}.mcpb" dist/caracara-archicad.mcpb
-      - name: Publish Python distributions with PyPI Trusted Publishing
-        run: uv publish --trusted-publishing always --check-url https://pypi.org/simple dist/*.whl dist/*.tar.gz
       - name: Attach the published files to GitHub
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh release upload "$RELEASE_TAG" dist/* --repo "$GITHUB_REPOSITORY" --clobber
+      - name: Publish Python distributions with PyPI Trusted Publishing
+        continue-on-error: true
+        run: uv publish --trusted-publishing always --check-url https://pypi.org/simple dist/*.whl dist/*.tar.gz
