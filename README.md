@@ -107,7 +107,9 @@ You can customize the server via CLI flags or environment variables (both `CARAC
 | CLI Flag | Environment Variable | Default | Description |
 | :--- | :--- | :--- | :--- |
 | `--transport` | - | `stdio` | Transport protocol to use (`stdio`, `sse`, or `streamable-http`) |
-| `--host` | `CARACARA_MCP_HOST` / `TAPIR_MCP_HOST` | `127.0.0.1` | Bind address for HTTP-based transports |
+| `--host` | `CARACARA_MCP_HOST` / `TAPIR_MCP_HOST` | `127.0.0.1` | Bind address for HTTP-based transports; must be loopback unless `--allow-remote` is set |
+| `--allow-remote` | `CARACARA_MCP_ALLOW_REMOTE` | off | Permit a non-loopback `--host` (e.g. `0.0.0.0`); requires `--token` |
+| `--output-root` | `CARACARA_MCP_OUTPUT_ROOT` | `<temp>/caracara-archicad-mcp` | Directory that files written by Archicad commands (exports, archives, Save As, screenshots) are confined to; relative paths are placed inside it |
 | `--port` | `CARACARA_MCP_PORT` / `TAPIR_MCP_PORT` | `8000` | Bind port for HTTP-based transports |
 | `--token` | `CARACARA_MCP_TOKEN` / `TAPIR_MCP_TOKEN` | `None` | Optional Bearer token to secure HTTP endpoints |
 | `--async-threshold-seconds` | `CARACARA_MCP_ASYNC_THRESHOLD_SECONDS` | `45` | Seconds to wait before returning a running job handle |

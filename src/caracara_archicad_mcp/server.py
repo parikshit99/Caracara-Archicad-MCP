@@ -1,4 +1,5 @@
 import argparse
+import ipaddress
 import logging
 import math
 import os
@@ -7,6 +8,7 @@ from typing import Any
 
 import caracara_archicad_mcp.model_configuration  # noqa: F401
 from caracara_archicad_mcp.app import mcp
+from caracara_archicad_mcp.file_paths import set_output_root
 from caracara_archicad_mcp.jobs import JobSettings
 from caracara_archicad_mcp.logging_config import setup_logging
 from caracara_archicad_mcp.middleware import BearerTokenMiddleware
@@ -52,7 +54,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--host",
         default=_env("HOST", "127.0.0.1"),
-        help="Host to bind for HTTP-based transports.",
+        help="Host to bind for HTTP-based transports. Must be a loopback address unless --allow-remote is set.",
+    )
+    parser.add_argument(
+        "--allow-remote",
+        action="store_true",
+        default=str(_env("ALLOW_REMOTE", "")).lower() in ("1", "true", "yes"),
+        help="Allow binding a non-loopback host. Requires --token.",
     )
     parser.add_argument(
         "--port",
@@ -90,6 +98,11 @@ def parse_args() -> argparse.Namespace:
         default=_env("MAX_COMPLETED_JOBS", "128"),
         help="Maximum retained completed/failed jobs; oldest are evicted with their pages (default: 128).",
     )
+    parser.add_argument(
+        "--output-root",
+        default=_env("OUTPUT_ROOT", None),
+        help="Directory that files written by Archicad commands are confined to (default: a temp subdirectory).",
+    )
     return parser.parse_args()
 
 
@@ -105,8 +118,32 @@ def sse_paths_from_mount_path(mount_path: str | None) -> dict[str, str]:
     }
 
 
+def is_loopback_host(host: str) -> bool:
+    if host.lower() == "localhost":
+        return True
+    try:
+        return ipaddress.ip_address(host.strip("[]")).is_loopback
+    except ValueError:
+        return False
+
+
+def check_bind_host(args: argparse.Namespace) -> None:
+    """Refuse non-loopback HTTP binds unless explicitly allowed and token-protected."""
+    if args.transport == "stdio" or is_loopback_host(args.host):
+        return
+    if not args.allow_remote:
+        raise SystemExit(
+            f"Refusing to bind non-loopback host '{args.host}'. Use 127.0.0.1, or pass --allow-remote with --token."
+        )
+    if not args.token:
+        raise SystemExit(f"Binding non-loopback host '{args.host}' requires --token.")
+    logging.warning("Serving MCP on non-loopback host %s; every request must carry the bearer token.", args.host)
+
+
 def main():
     args = parse_args()
+    check_bind_host(args)
+    set_output_root(args.output_root)
     import caracara_archicad_mcp.app as app_module
 
     app_module.job_settings = JobSettings(

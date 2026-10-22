@@ -1,7 +1,10 @@
 # these are needed to ensure configuration happens before models are loaded
+import json
 from types import SimpleNamespace
+from typing import Any
 from unittest.mock import Mock
 
+import httpx
 import pytest
 from multiconn_archicad import ArchicadLocation, Port, ProductInfo, SoloProjectID
 
@@ -55,6 +58,48 @@ class FakeArchicad:
                 f"Register a response with on_tapir_command() first."
             )
         return self._canned_responses[command]
+
+
+class FakeTapirHttp:
+    """
+    Simulates the Archicad JSON API at http://127.0.0.1:19723 below the real
+    multiconn HTTP client, so request envelopes, Tapir error envelopes and
+    transport failures are exercised without a running Archicad.
+    """
+
+    def __init__(self):
+        self.requests: list[tuple[str, dict]] = []
+        self._responses: dict[str, Any] = {}
+
+    def on_tapir_command(self, command: str, result: Any = None, *, error: dict | None = None) -> None:
+        """Answer a Tapir command with a result, a Tapir error, or an exception to raise."""
+        self._responses[command] = {"error": error} if error is not None else result
+
+    def handle(self, request: httpx.Request) -> httpx.Response:
+        payload = json.loads(request.content)
+        self.requests.append((str(request.url), payload))
+        command = payload["parameters"]["addOnCommandId"]["commandName"]
+        response = self._responses.get(command)
+        if isinstance(response, Exception):
+            raise response
+        if response is None:
+            return httpx.Response(200, json={"succeeded": False, "error": {"code": 4010, "message": "unknown"}})
+        return httpx.Response(200, json={"succeeded": True, "result": {"addOnCommandResponse": response}})
+
+
+@pytest.fixture
+def tapir_http(monkeypatch):
+    """Patches multiconn's HTTP client so every request is answered by FakeTapirHttp."""
+    from multiconn_archicad.clients.core import core_commands
+
+    fake = FakeTapirHttp()
+    real_client = httpx.Client
+
+    def client_factory(*args, **kwargs):
+        return real_client(*args, transport=httpx.MockTransport(fake.handle), **kwargs)
+
+    monkeypatch.setattr(core_commands.httpx, "Client", client_factory)
+    return fake
 
 
 @pytest.fixture

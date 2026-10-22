@@ -94,6 +94,11 @@ def project_element(item: dict[str, Any], fields: list[str]) -> dict[str, Any]:
                 projected[field] = details_dict[details_lower[field_lower]]
                 continue
 
+    # Per-element failures (e.g. an element deleted after its set was created)
+    # must survive projection, or the caller cannot tell a ghost from a match.
+    if "error" in item and "error" not in projected:
+        projected["error"] = item["error"]
+
     return projected
 
 

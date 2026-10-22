@@ -194,19 +194,15 @@ def set_property_values_of_elements(conn_header: ConnHeader, params: SetProperty
             pid = params.property_id.model_dump(by_alias=True) if hasattr(params.property_id, "model_dump") else params.property_id
             pval = params.property_value.model_dump(by_alias=True) if hasattr(params.property_value, "model_dump") else params.property_value
             items_to_apply.append({"propertyId": pid, "propertyValue": pval})
-        elif params.property_values:
-            for item in params.property_values:
+        elif params.property_values or params.element_property_values:
+            for item in params.property_values or params.element_property_values:
                 d = item.model_dump(by_alias=True) if hasattr(item, "model_dump") else item
+                if not isinstance(d, dict):
+                    raise ToolError("Each property value must be an object with propertyId and propertyValue.")
+                # Look keys up by presence, not truthiness: 0, False and "" are valid property values.
                 items_to_apply.append({
-                    "propertyId": d.get("propertyId") or d.get("property_id"),
-                    "propertyValue": d.get("propertyValue") or d.get("property_value"),
-                })
-        elif params.element_property_values:
-            for item in params.element_property_values:
-                d = item.model_dump(by_alias=True) if hasattr(item, "model_dump") else item
-                items_to_apply.append({
-                    "propertyId": d.get("propertyId") or d.get("property_id"),
-                    "propertyValue": d.get("propertyValue") or d.get("property_value"),
+                    "propertyId": d["propertyId"] if "propertyId" in d else d.get("property_id"),
+                    "propertyValue": d["propertyValue"] if "propertyValue" in d else d.get("property_value"),
                 })
         else:
             raise ToolError("When 'targetSetId' is provided, propertyId/propertyValue or propertyValues must be specified.")
