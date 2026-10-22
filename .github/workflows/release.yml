@@ -26,6 +26,8 @@ defaults:
 
 jobs:
   publish:
+    # The rolling "weekly" pre-release from weekly-build.yml is never published to PyPI.
+    if: github.event_name == 'workflow_dispatch' || github.event.release.tag_name != 'weekly'
     runs-on: ubuntu-latest
     permissions:
       actions: read

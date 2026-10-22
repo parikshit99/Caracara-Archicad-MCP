@@ -87,6 +87,8 @@ A complete boilerplate configuration snippet is also provided in [`claude_deskto
 
 If your client supports [MCP Bundles](https://github.com/modelcontextprotocol/mcpb) you can skip manual configuration. Claude Desktop, Claude Code and MCP for Windows install `.mcpb` files directly.
 
+To try unreleased changes, the [weekly pre-release](https://github.com/parikshit99/Caracara-Archicad-MCP/releases/tag/weekly) is rebuilt from `master` every Friday when it has changed; [caracara-archicad-weekly.mcpb](https://github.com/parikshit99/Caracara-Archicad-MCP/releases/download/weekly/caracara-archicad-weekly.mcpb) always points to the latest one.
+
 `uv` still has to be on the PATH your client sees, but it provisions Python and the locked dependencies itself. The bundle can modify the open project, export files, and send or receive Teamwork, so treat installing it like handing your client your Archicad seat.
 
 <details>
