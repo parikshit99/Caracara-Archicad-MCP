@@ -152,8 +152,8 @@ def generate_tool_files(grouped_commands: dict[str, list[dict]], config: ApiSour
         if imports_block:
             common_imports.append(imports_block)
         if REGISTER_AS_MCP_TOOLS:
-            common_imports.append("from tapir_archicad_mcp.app import mcp")
-        common_imports.append("\nfrom tapir_archicad_mcp.tools.tool_registry import register_tool_for_dispatch")
+            common_imports.append("from caracara_archicad_mcp.app import mcp")
+        common_imports.append("\nfrom caracara_archicad_mcp.tools.tool_registry import register_tool_for_dispatch")
 
 
         file_content = ["\n".join(common_imports)]
@@ -169,7 +169,7 @@ def generate_init_file(config: ApiSourceConfig, module_names: set[str]):
     init_path = config.output_dir / "__init__.py"
     content = [FILE_HEADER, ""]
     for module_name in sorted(list(module_names)):
-        content.append(f"from tapir_archicad_mcp.tools.generated.{config.name}.{module_name} import *")
+        content.append(f"from caracara_archicad_mcp.tools.generated.{config.name}.{module_name} import *")
     with open(init_path, "w", encoding="utf-8") as f:
         f.write("\n".join(content))
     log.info(f"Generated __init__.py file at {init_path}")

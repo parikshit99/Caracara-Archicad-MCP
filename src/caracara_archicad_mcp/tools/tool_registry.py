@@ -90,6 +90,34 @@ def register_tool_for_dispatch(
     log.debug(f"Registered tool: {name}")
 
 
+def override_tool_for_dispatch(
+    name: str,
+    func: Callable,
+    params_model: ModelOrUnion = None,
+    description: str | None = None,
+):
+    """
+    Replaces the callable (and optionally the params model and description) of
+    a generated command, keeping its title and pagination. Hand-written
+    behaviour lives in tools/overrides.py so regenerating never erases it; a
+    command missing from the generated set is an error, not a silent no-op.
+    """
+    if name not in TOOL_CALLABLE_REGISTRY:
+        raise RuntimeError(f"Cannot override '{name}': no generated command with that name is registered.")
+    entry = TOOL_CALLABLE_REGISTRY[name]
+    params_model = params_model or entry.params_model
+    TOOL_CALLABLE_REGISTRY[name] = ToolRegistryEntry(
+        callable=func,
+        params_model=params_model,
+        arguments_model=_build_tool_arguments_model(name, params_model, entry.pagination_field),
+        pagination_field=entry.pagination_field,
+    )
+    if description is not None:
+        TOOL_DISCOVERY_CATALOG[name] = {**TOOL_DISCOVERY_CATALOG[name], "description": description}
+    _TOOL_INPUT_SCHEMA_CACHE.pop(name, None)
+    log.debug(f"Overrode tool: {name}")
+
+
 def get_tool_input_schema(name: str) -> dict[str, Any]:
     """
     Returns a tool's argument JSON schema, building it on first request.
