@@ -1,25 +1,25 @@
 # Caracara Archicad MCP Server
 
-An extended Model Context Protocol (MCP) server for Archicad automation, based on [tapir-archicad-MCP](https://github.com/SzamosiMate/tapir-archicad-MCP).
+A personal, experimental fork of [tapir-archicad-MCP](https://github.com/SzamosiMate/tapir-archicad-MCP) for custom Archicad automation workflows.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Status](https://img.shields.io/badge/status-fork%20%7C%20active-blue.svg)]()
 
 > **Note:** This is a downstream, fast-moving fork of [SzamosiMate/tapir-archicad-MCP](https://github.com/SzamosiMate/tapir-archicad-MCP) maintained for custom workflows and experimental Archicad tool bindings. All core credit belongs to Szamosi Mate. If you need the stable upstream release, visit the original repository.
 
-It acts as an intelligent bridge, allowing AI agents and applications (like Claude for Desktop, Claude Code, or Gemini CLI) to interact with running Archicad instances by wrapping both the community-driven **Tapir API** and the **official Archicad JSON API**.
+It acts as a bridge, allowing AI agents and applications (like Claude for Desktop, Claude Code, or Gemini CLI) to interact with running Archicad instances by wrapping both the community-driven **Tapir API** and the **official Archicad JSON API**.
 
-The server dynamically generates a comprehensive set of **191+** MCP tools from the combined API schemas, enabling fine-grained, resilient control over Archicad BIM projects.
+The server dynamically generates a comprehensive set of **191+** MCP tools from the combined API schemas, enabling fine-grained control over Archicad BIM projects.
 
 ---
 
-## Extended Caracara Features
+## Custom Workflows in this Fork
 
-In addition to core Tapir MCP capabilities, **Caracara** introduces enhancements designed for high-performance AI agent workflows:
+This fork contains personal experiments and custom utilities tailored for specific agent workflows:
 
--   **Field Masking & Projection (`field_masking`):** Selectively filter and project element properties and model hierarchies to drastically reduce token consumption and eliminate context-window bloat.
--   **Polymorphic Meta-Verbs (`meta_verbs`):** High-level semantic actions that simplify complex BIM workflows (querying, transforming, grouping) into ergonomic agent primitives.
--   **Result Registry & Caching (`result_registry`):** Server-side handle storage and virtual element sets for referencing large query results across conversational turns without re-fetching.
+-   **Field Masking & Projection (`field_masking`):** Allows selectively filtering and projecting element properties to reduce payload sizes.
+-   **Custom Meta-Verbs (`meta_verbs`):** Utility actions (`archicad_query`, `archicad_mutate`) exploring consolidated multi-step operations.
+-   **Result Registry (`result_registry`):** In-memory handle storage for referencing large query result sets across conversational turns without re-fetching.
 
 ---
 
@@ -174,9 +174,9 @@ The server operates through a layered architecture:
 We are deeply grateful to Máté and the [Enzyme APD](https://github.com/ENZYME-APD/tapir-archicad-automation) team for developing the Archicad automation ecosystem and making it open-source.
 
 **Why this fork?**  
-Caracara explores advanced agentic extensions—including polymorphic meta-verbs, field masking, and virtual element sets. Wherever possible, improvements and bug fixes applicable to the core server are contributed back upstream.
+This fork is maintained purely as a personal sandbox and experimental testbed for custom workflows. It is not intended to compete with or replace the original project. For production use and the official, stable release, please use the upstream [SzamosiMate/tapir-archicad-MCP](https://github.com/SzamosiMate/tapir-archicad-MCP) repository.
 
-*Note: For issues or feature requests related specifically to Caracara, please use the [Caracara Issue Tracker](https://github.com/parikshit99/caracara-archicad/issues) to avoid burdening upstream maintainers.*
+*Note: For issues or questions related specifically to this fork, please use the [Caracara Issue Tracker](https://github.com/parikshit99/caracara-archicad/issues) to avoid burdening upstream maintainers.*
 
 Icon artwork is the official Tapir mark from [ENZYME-APD/tapir-archicad-automation](https://github.com/ENZYME-APD/tapir-archicad-automation) (`branding/logo/png/tapir_logo_black_512.png`), MIT, Copyright 2024 Enzyme APD.
 

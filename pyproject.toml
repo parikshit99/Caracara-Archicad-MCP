@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "caracara-archicad-mcp"
 version = "0.6.6"
-description = "An extended MCP server for Archicad automation with script sandboxing, field masking, and polymorphic meta-verbs."
+description = "A personal fork of tapir-archicad-mcp for custom workflows and experimental Archicad tool bindings."
 readme = "README.md"
 authors = [
     { name = "SzamosiMate", email = "szamimate@yahoo.com" }
