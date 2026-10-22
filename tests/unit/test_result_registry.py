@@ -273,10 +273,7 @@ def test_result_registry_lru_eviction_at_capacity_cap():
     assert ResultRegistry.MAX_CAPACITY == 50
 
     # Register 50 sets
-    set_ids = [
-        ResultRegistry.register([{"elementId": {"guid": f"elem-{i}"}}], element_type="Wall")
-        for i in range(50)
-    ]
+    set_ids = [ResultRegistry.register([{"elementId": {"guid": f"elem-{i}"}}], element_type="Wall") for i in range(50)]
     assert len(STORAGE_SETS) == 50
     assert ResultRegistry.has("set_walls_01")
     assert ResultRegistry.has("set_walls_50")

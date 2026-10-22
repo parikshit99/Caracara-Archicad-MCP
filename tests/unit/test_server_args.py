@@ -47,6 +47,7 @@ def test_server_defaults_configuration(monkeypatch, mock_server_run):
 
     # Run main entrypoint
     from caracara_archicad_mcp.server import main
+
     main()
 
     mock_server_run.assert_called_once_with(transport="stdio")
@@ -61,6 +62,7 @@ def test_http_transport_defaults_configuration(monkeypatch, mock_server_run):
     monkeypatch.setattr(sys, "argv", ["server.py", "--transport", "streamable-http"])
 
     from caracara_archicad_mcp.server import main
+
     main()
 
     mock_server_run.assert_called_once_with(
@@ -81,6 +83,7 @@ def test_server_env_fallback_configuration(monkeypatch, mock_server_run):
     monkeypatch.setattr(sys, "argv", ["server.py", "--transport", "streamable-http"])
 
     from caracara_archicad_mcp.server import main
+
     main()
 
     mock_server_run.assert_called_once_with(
@@ -101,20 +104,11 @@ def test_server_cli_override_configuration(monkeypatch, mock_server_run):
     monkeypatch.setattr(
         sys,
         "argv",
-        [
-            "server.py",
-            "--transport",
-            "sse",
-            "--host",
-            "localhost",
-            "--port",
-            "7070",
-            "--mount-path",
-            "/cli-sse-path"
-        ]
+        ["server.py", "--transport", "sse", "--host", "localhost", "--port", "7070", "--mount-path", "/cli-sse-path"],
     )
 
     from caracara_archicad_mcp.server import main
+
     main()
 
     # Assert CLI overrides took precedence over ENVs
@@ -154,21 +148,39 @@ def test_job_configuration_defaults_and_environment_cli_precedence(monkeypatch):
     monkeypatch.setenv("TAPIR_MCP_MAX_COMPLETED_JOBS", "20")
     args = parse_args()
     assert (args.async_threshold_seconds, args.job_ttl_seconds, args.max_completed_jobs) == (12.5, 3600, 20)
-    monkeypatch.setattr(sys, "argv", [
-        "server.py", "--async-threshold-seconds", "5", "--job-ttl-seconds", "0", "--max-completed-jobs", "2",
-    ])
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "server.py",
+            "--async-threshold-seconds",
+            "5",
+            "--job-ttl-seconds",
+            "0",
+            "--max-completed-jobs",
+            "2",
+        ],
+    )
     args = parse_args()
     assert (args.async_threshold_seconds, args.job_ttl_seconds, args.max_completed_jobs) == (5, 0, 2)
 
 
-@pytest.mark.parametrize("flag,value", [
-    ("--async-threshold-seconds", "0"), ("--async-threshold-seconds", "-1"),
-    ("--async-threshold-seconds", "nan"), ("--async-threshold-seconds", "inf"),
-    ("--async-threshold-seconds", "invalid"), ("--job-ttl-seconds", "-1"),
-    ("--job-ttl-seconds", "nan"), ("--job-ttl-seconds", "inf"),
-    ("--max-completed-jobs", "0"), ("--max-completed-jobs", "-1"),
-    ("--max-completed-jobs", "1.5"),
-])
+@pytest.mark.parametrize(
+    "flag,value",
+    [
+        ("--async-threshold-seconds", "0"),
+        ("--async-threshold-seconds", "-1"),
+        ("--async-threshold-seconds", "nan"),
+        ("--async-threshold-seconds", "inf"),
+        ("--async-threshold-seconds", "invalid"),
+        ("--job-ttl-seconds", "-1"),
+        ("--job-ttl-seconds", "nan"),
+        ("--job-ttl-seconds", "inf"),
+        ("--max-completed-jobs", "0"),
+        ("--max-completed-jobs", "-1"),
+        ("--max-completed-jobs", "1.5"),
+    ],
+)
 def test_invalid_job_configuration_fails_at_startup(monkeypatch, flag, value):
     from caracara_archicad_mcp.server import parse_args
 
@@ -212,6 +224,7 @@ def test_server_caracara_env_precedence(monkeypatch, mock_server_run):
     monkeypatch.setattr(sys, "argv", ["server.py", "--transport", "streamable-http"])
 
     from caracara_archicad_mcp.server import main
+
     main()
 
     mock_server_run.assert_called_once_with(
@@ -225,6 +238,7 @@ def test_non_loopback_host_is_refused_without_opt_in(monkeypatch, mock_server_ru
     monkeypatch.setattr(sys, "argv", ["server.py", "--transport", "streamable-http", "--host", host])
 
     from caracara_archicad_mcp.server import main
+
     with pytest.raises(SystemExit, match="non-loopback"):
         main()
     mock_server_run.assert_not_called()
@@ -235,6 +249,7 @@ def test_non_loopback_host_with_opt_in_still_requires_token(monkeypatch, mock_se
     monkeypatch.setattr(sys, "argv", ["server.py", "--transport", "sse", "--host", "0.0.0.0", "--allow-remote"])
 
     from caracara_archicad_mcp.server import main
+
     with pytest.raises(SystemExit, match="requires --token"):
         main()
     mock_server_run.assert_not_called()
@@ -243,4 +258,5 @@ def test_non_loopback_host_with_opt_in_still_requires_token(monkeypatch, mock_se
 @pytest.mark.parametrize("host", ["127.0.0.1", "127.0.0.5", "localhost", "::1", "[::1]"])
 def test_loopback_hosts_are_accepted(host):
     from caracara_archicad_mcp.server import is_loopback_host
+
     assert is_loopback_host(host)

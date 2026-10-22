@@ -5,8 +5,8 @@ from mcp.server.mcpserver.exceptions import ToolError
 
 from caracara_archicad_mcp.app import mcp
 from caracara_archicad_mcp.result_registry import ResultRegistry
-from caracara_archicad_mcp.tools.overrides import DEFAULT_HIGHLIGHT_COLOR
 from caracara_archicad_mcp.tools.custom.meta_verbs import archicad_mutate, archicad_query
+from caracara_archicad_mcp.tools.overrides import DEFAULT_HIGHLIGHT_COLOR
 
 
 @pytest.fixture(autouse=True)
@@ -237,7 +237,11 @@ async def test_archicad_mutate_rotate_elements_via_target_set(fake_archicad):
 async def test_archicad_mutate_unsupported_action_raises_tool_error(fake_archicad):
     """Verifies archicad_mutate rejects unsupported actions with ToolError."""
     with pytest.raises(ToolError, match="Unsupported action 'unknown_action'"):
-        await archicad_mutate(target_set=[{"elementId": {"guid": "00000000-0000-0000-0000-000000000023"}}], action="unknown_action", port=fake_archicad.port)
+        await archicad_mutate(
+            target_set=[{"elementId": {"guid": "00000000-0000-0000-0000-000000000023"}}],
+            action="unknown_action",
+            port=fake_archicad.port,
+        )
 
 
 @pytest.mark.asyncio

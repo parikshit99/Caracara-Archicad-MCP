@@ -20,8 +20,8 @@ PAGINATED_DOCSTRING_ADDENDUM = (
 
 
 def camel_to_snake(name: str) -> str:
-    s1 = re.sub(r'(.)([A-Z][a-z]+)', r'\1_\2', name)
-    return re.sub(r'([a-z0-9])([A-Z])', r'\1_\2', s1).lower()
+    s1 = re.sub(r"(.)([A-Z][a-z]+)", r"\1_\2", name)
+    return re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", s1).lower()
 
 
 def get_command_model_names(command_name: str) -> tuple[str, str]:
@@ -76,7 +76,7 @@ def _generate_imports_for_group(commands: list[dict], valid_model_names: set[str
 
 def _generate_call_block(cmd: dict, has_params: bool, config: ApiSourceConfig) -> str:
     params_for_api_call = "params.model_dump(mode='json', by_alias=True, exclude_none=True)" if has_params else "{}"
-    api_call = f'conn_header.core.{config.api_call_method}'
+    api_call = f"conn_header.core.{config.api_call_method}"
     return dedent(f'''
         return {api_call}(
             command="{cmd["name_for_api"]}",
@@ -118,14 +118,12 @@ def _generate_tool_function_code(command: dict, valid_model_names: set[str], con
 
     pagination_registration_arg = ""
     if is_paginated:
-        pagination_registration_arg = (
-            f',\n    pagination_field="{config.paginated_commands[command_name_camel]}"'
-        )
+        pagination_registration_arg = f',\n    pagination_field="{config.paginated_commands[command_name_camel]}"'
 
-    function_code = f'''{decorator}def {command_name_snake}(conn_header: ConnHeader{param_signature}) -> {return_annotation}:
+    function_code = f"""{decorator}def {command_name_snake}(conn_header: ConnHeader{param_signature}) -> {return_annotation}:
 {indent(docstring, "    ")}
 {indent(call_block, "    ")}
-'''
+"""
 
     registration_call = f"""register_tool_for_dispatch(
     {command_name_snake},
@@ -155,7 +153,6 @@ def generate_tool_files(grouped_commands: dict[str, list[dict]], config: ApiSour
             common_imports.append("from caracara_archicad_mcp.app import mcp")
         common_imports.append("\nfrom caracara_archicad_mcp.tools.tool_registry import register_tool_for_dispatch")
 
-
         file_content = ["\n".join(common_imports)]
         for cmd in sorted(commands, key=lambda x: x["name_camel"]):
             file_content.append(_generate_tool_function_code(cmd, valid_model_names, config))
@@ -168,7 +165,7 @@ def generate_tool_files(grouped_commands: dict[str, list[dict]], config: ApiSour
 def generate_init_file(config: ApiSourceConfig, module_names: set[str]):
     init_path = config.output_dir / "__init__.py"
     content = [FILE_HEADER, ""]
-    for module_name in sorted(list(module_names)):
+    for module_name in sorted(module_names):
         content.append(f"from caracara_archicad_mcp.tools.generated.{config.name}.{module_name} import *")
     with open(init_path, "w", encoding="utf-8") as f:
         f.write("\n".join(content))
@@ -228,7 +225,7 @@ def run_generation_for_source(config: ApiSourceConfig) -> set[str]:
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
     log.info("--- Starting Archicad MCP Tool Generator ---")
 
     run_generation_for_source(TAPIR_CONFIG)

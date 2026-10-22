@@ -1,4 +1,5 @@
 """Backwards-compatibility shim redirecting tapir_archicad_mcp to caracara_archicad_mcp."""
+
 import caracara_archicad_mcp
 
 # Share package search path so submodules (e.g. tapir_archicad_mcp.server) resolve directly

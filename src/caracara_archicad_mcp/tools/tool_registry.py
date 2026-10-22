@@ -1,7 +1,7 @@
 import logging
 from collections.abc import Callable
 from types import UnionType
-from typing import Any, Optional, Union
+from typing import Any, Union
 
 from mcp.server.mcpserver.exceptions import ToolError
 from multiconn_archicad.constants import DEFAULT_PORT_RANGE
@@ -10,7 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field, create_model
 log = logging.getLogger(__name__)
 
 
-ModelOrUnion = Optional[type | UnionType | type(Union)]
+ModelOrUnion = type | UnionType | type(Union) | None
 
 
 class ToolRegistryEntry(BaseModel):

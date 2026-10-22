@@ -43,7 +43,7 @@ def get_max_line_length(default: int = 120) -> int:
         line_length = data.get("line-length")
         if line_length is not None:
             return int(line_length)
-    except Exception as e:
+    except (OSError, ValueError, tomllib.TOMLDecodeError) as e:
         log.warning(f"Could not read line-length from {config_path}: {e}")
 
     return default

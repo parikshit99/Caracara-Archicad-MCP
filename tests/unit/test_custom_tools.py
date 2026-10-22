@@ -45,10 +45,7 @@ def make_header(
     is_installed: bool = True,
     product_info=ProductInfo(version=28, buildNumber=3001, languageCode="INT"),
 ):
-    if is_installed and version:
-        tapir = TapirInfo(version=version, is_installed=True)
-    else:
-        tapir = TapirInfo.not_installed()
+    tapir = TapirInfo(version=version, is_installed=True) if is_installed and version else TapirInfo.not_installed()
 
     return SimpleNamespace(
         product_info=product_info,
@@ -196,7 +193,7 @@ async def test_union_parameter_models_validate_and_dispatch(fake_archicad):
 
 
 def test_archicad_get_command_schema_invalid(fake_archicad):
-    with pytest.raises(ToolError, match="not found. Please use 'archicad_list_commands'"):
+    with pytest.raises(ToolError, match=r"not found\. Please use 'archicad_list_commands'"):
         archicad_get_command_schema("made_up_command_name")
 
 

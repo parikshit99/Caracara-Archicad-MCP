@@ -1,14 +1,12 @@
-from typing import Any, Generic, TypeVar
+from typing import Any
 
 from mcp.server.mcpserver import MCPServer
 from multiconn_archicad import MultiConn
 
 from caracara_archicad_mcp.jobs import JobStore
 
-T = TypeVar("T")
 
-
-class ServerState(Generic[T]):
+class ServerState[T]:
     """A process-wide server-state slot."""
 
     _UNSET = object()

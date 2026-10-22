@@ -28,29 +28,52 @@ MAX_ITEMIZED_FAILURES = 50
 def _normalize_element_type(target: str) -> str:
     """Normalize element type names to standard Archicad capitalization."""
     type_map = {
-        "wall": "Wall", "walls": "Wall",
-        "column": "Column", "columns": "Column",
-        "slab": "Slab", "slabs": "Slab",
-        "beam": "Beam", "beams": "Beam",
-        "door": "Door", "doors": "Door",
-        "window": "Window", "windows": "Window",
-        "roof": "Roof", "roofs": "Roof",
-        "mesh": "Mesh", "meshes": "Mesh",
-        "zone": "Zone", "zones": "Zone",
-        "morph": "Morph", "morphs": "Morph",
-        "object": "Object", "objects": "Object",
-        "stair": "Stair", "stairs": "Stair",
-        "railing": "Railing", "railings": "Railing",
-        "curtainwall": "CurtainWall", "curtainwalls": "CurtainWall",
-        "curtain_wall": "CurtainWall", "curtain_walls": "CurtainWall",
-        "hatch": "Hatch", "hatches": "Hatch",
-        "line": "Line", "lines": "Line",
-        "polyline": "Polyline", "polylines": "Polyline",
-        "arc": "Arc", "arcs": "Arc",
-        "circle": "Circle", "circles": "Circle",
-        "text": "Text", "texts": "Text",
-        "label": "Label", "labels": "Label",
-        "dimension": "Dimension", "dimensions": "Dimension",
+        "wall": "Wall",
+        "walls": "Wall",
+        "column": "Column",
+        "columns": "Column",
+        "slab": "Slab",
+        "slabs": "Slab",
+        "beam": "Beam",
+        "beams": "Beam",
+        "door": "Door",
+        "doors": "Door",
+        "window": "Window",
+        "windows": "Window",
+        "roof": "Roof",
+        "roofs": "Roof",
+        "mesh": "Mesh",
+        "meshes": "Mesh",
+        "zone": "Zone",
+        "zones": "Zone",
+        "morph": "Morph",
+        "morphs": "Morph",
+        "object": "Object",
+        "objects": "Object",
+        "stair": "Stair",
+        "stairs": "Stair",
+        "railing": "Railing",
+        "railings": "Railing",
+        "curtainwall": "CurtainWall",
+        "curtainwalls": "CurtainWall",
+        "curtain_wall": "CurtainWall",
+        "curtain_walls": "CurtainWall",
+        "hatch": "Hatch",
+        "hatches": "Hatch",
+        "line": "Line",
+        "lines": "Line",
+        "polyline": "Polyline",
+        "polylines": "Polyline",
+        "arc": "Arc",
+        "arcs": "Arc",
+        "circle": "Circle",
+        "circles": "Circle",
+        "text": "Text",
+        "texts": "Text",
+        "label": "Label",
+        "labels": "Label",
+        "dimension": "Dimension",
+        "dimensions": "Dimension",
     }
     cleaned = target.strip().lower()
     return type_map.get(cleaned, target.strip())
@@ -177,9 +200,7 @@ async def archicad_query(
         params: dict[str, Any] = {}
         if filter and "filters" in filter:
             params["filters"] = filter["filters"]
-        raw_res, raw_elements = await _all_pages(
-            "elements_get_all_elements", {"port": target_port, "params": params}
-        )
+        raw_res, raw_elements = await _all_pages("elements_get_all_elements", {"port": target_port, "params": params})
         element_type = "Element"
 
     elif target_lower in ("classified", "classification") or (filter and "classificationItemId" in filter):
@@ -267,7 +288,9 @@ async def archicad_query(
             response["next_page_token"] = details_res["next_page_token"]
         return response
 
-    raise ToolError(f"Unsupported output specification '{output}'. Supported: 'set', 'count', 'ids', or list of field names.")
+    raise ToolError(
+        f"Unsupported output specification '{output}'. Supported: 'set', 'count', 'ids', or list of field names."
+    )
 
 
 @mcp.tool(
@@ -347,9 +370,7 @@ async def archicad_mutate(
             raise ToolError("Payload must be provided for 'move' action (e.g. {'x': 1.0, 'y': 0.0, 'z': 0.0}).")
         move_vector = _vector(payload)
         copy_val = payload.get("copy", False)
-        move_vectors = [
-            {"elementId": elem_id, "moveVector": move_vector, "copy": copy_val} for elem_id in element_ids
-        ]
+        move_vectors = [{"elementId": elem_id, "moveVector": move_vector, "copy": copy_val} for elem_id in element_ids]
         result = await archicad_call_tool(
             "elements_move_elements",
             {"port": target_port, "params": {"elementsWithMoveVectors": move_vectors}},
@@ -382,5 +403,6 @@ async def archicad_mutate(
         return _itemize(result, element_ids, invalid)
 
     raise ToolError(
-        f"Unsupported action '{action}'. Supported actions: 'delete', 'highlight', 'set_property', 'move', 'rotate', 'set_details'."
+        f"Unsupported action '{action}'. "
+        "Supported actions: 'delete', 'highlight', 'set_property', 'move', 'rotate', 'set_details'."
     )

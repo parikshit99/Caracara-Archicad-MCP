@@ -150,4 +150,3 @@ async def test_live_sse_server():
         # Cleanly signal the Uvicorn server to shutdown and wait for the task to exit
         server.should_exit = True
         await server_task
-

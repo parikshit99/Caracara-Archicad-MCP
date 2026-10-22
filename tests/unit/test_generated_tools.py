@@ -11,10 +11,7 @@ pytestmark = pytest.mark.asyncio
 
 
 def _elements(count: int, prefix: str = "element") -> list[dict]:
-    return [
-        {"elementId": {"guid": f"{prefix}-{index:03d}"}}
-        for index in range(count)
-    ]
+    return [{"elementId": {"guid": f"{prefix}-{index:03d}"}} for index in range(count)]
 
 
 async def test_generated_read_tool_dispatches_and_preserves_raw_result(fake_archicad):
@@ -30,13 +27,12 @@ async def test_generated_read_tool_dispatches_and_preserves_raw_result(fake_arch
         },
     )
 
-    result = await archicad_call_tool(
-        "elements_get_selected_elements", {"port": fake_archicad.port}
-    )
+    result = await archicad_call_tool("elements_get_selected_elements", {"port": fake_archicad.port})
 
     assert result["elements"] == [{"elementId": {"guid": GUID}}]
     assert result["futureField"] == {"value": None}
     assert fake_archicad.calls[0][0] == "GetSelectedElements"
+
 
 async def test_paginated_read_tool_returns_pages_from_one_transport_snapshot(fake_archicad):
     fake_archicad.on_tapir_command(
@@ -47,9 +43,7 @@ async def test_paginated_read_tool_returns_pages_from_one_transport_snapshot(fak
         },
     )
 
-    first_page = await archicad_call_tool(
-        "elements_get_selected_elements", {"port": fake_archicad.port}
-    )
+    first_page = await archicad_call_tool("elements_get_selected_elements", {"port": fake_archicad.port})
     token = first_page["next_page_token"]
 
     second_page = await archicad_call_tool(
@@ -72,9 +66,7 @@ async def test_paginated_read_tool_returns_pages_from_one_transport_snapshot(fak
 async def test_replaying_page_token_returns_same_page_and_does_not_call_archicad(fake_archicad):
     fake_archicad.on_tapir_command("GetSelectedElements", {"elements": _elements(150)})
 
-    first_page = await archicad_call_tool(
-        "elements_get_selected_elements", {"port": fake_archicad.port}
-    )
+    first_page = await archicad_call_tool("elements_get_selected_elements", {"port": fake_archicad.port})
     token = first_page["next_page_token"]
 
     page = await archicad_call_tool(
@@ -91,20 +83,12 @@ async def test_replaying_page_token_returns_same_page_and_does_not_call_archicad
 
 
 async def test_new_initial_request_does_not_replace_an_existing_snapshot(fake_archicad):
-    fake_archicad.on_tapir_command(
-        "GetSelectedElements", {"elements": _elements(150, prefix="first")}
-    )
-    first_page = await archicad_call_tool(
-        "elements_get_selected_elements", {"port": fake_archicad.port}
-    )
+    fake_archicad.on_tapir_command("GetSelectedElements", {"elements": _elements(150, prefix="first")})
+    first_page = await archicad_call_tool("elements_get_selected_elements", {"port": fake_archicad.port})
     first_token = first_page["next_page_token"]
 
-    fake_archicad.on_tapir_command(
-        "GetSelectedElements", {"elements": _elements(150, prefix="second")}
-    )
-    second_page = await archicad_call_tool(
-        "elements_get_selected_elements", {"port": fake_archicad.port}
-    )
+    fake_archicad.on_tapir_command("GetSelectedElements", {"elements": _elements(150, prefix="second")})
+    second_page = await archicad_call_tool("elements_get_selected_elements", {"port": fake_archicad.port})
     second_token = second_page["next_page_token"]
 
     first_remainder = await archicad_call_tool(
@@ -138,9 +122,7 @@ async def test_invalid_page_token_is_rejected_before_transport(fake_archicad, pa
 @pytest.mark.parametrize("offset", ["-1", "1", "200"])
 async def test_invalid_page_offset_is_rejected_before_transport(fake_archicad, offset):
     fake_archicad.on_tapir_command("GetSelectedElements", {"elements": _elements(150)})
-    first_page = await archicad_call_tool(
-        "elements_get_selected_elements", {"port": fake_archicad.port}
-    )
+    first_page = await archicad_call_tool("elements_get_selected_elements", {"port": fake_archicad.port})
     session, separator, _ = first_page["next_page_token"].partition(":")
     assert separator
     forged_offset_token = f"{session}:{offset}"
@@ -156,9 +138,7 @@ async def test_invalid_page_offset_is_rejected_before_transport(fake_archicad, o
 
 async def test_page_token_is_bound_to_command(fake_archicad):
     fake_archicad.on_tapir_command("GetSelectedElements", {"elements": _elements(150)})
-    first_page = await archicad_call_tool(
-        "elements_get_selected_elements", {"port": fake_archicad.port}
-    )
+    first_page = await archicad_call_tool("elements_get_selected_elements", {"port": fake_archicad.port})
     token = first_page["next_page_token"]
 
     fake_archicad.on_tapir_command("GetAllProperties", {"properties": _elements(150)})
@@ -194,9 +174,7 @@ async def test_page_token_is_bound_to_serialized_parameters(fake_archicad):
 
 async def test_page_token_is_bound_to_connection_identity(fake_archicad):
     fake_archicad.on_tapir_command("GetSelectedElements", {"elements": _elements(150)})
-    first_page = await archicad_call_tool(
-        "elements_get_selected_elements", {"port": fake_archicad.port}
-    )
+    first_page = await archicad_call_tool("elements_get_selected_elements", {"port": fake_archicad.port})
     token = first_page["next_page_token"]
 
     multi_conn = multi_conn_instance.get()
@@ -212,9 +190,7 @@ async def test_page_token_is_bound_to_connection_identity(fake_archicad):
 
 async def test_pruned_page_token_is_rejected_without_transport(job_store, job_clock, fake_archicad):
     fake_archicad.on_tapir_command("GetSelectedElements", {"elements": _elements(150)})
-    first_page = await archicad_call_tool(
-        "elements_get_selected_elements", {"port": fake_archicad.port}
-    )
+    first_page = await archicad_call_tool("elements_get_selected_elements", {"port": fake_archicad.port})
     token = first_page["next_page_token"]
     job_clock.now += JobSettings().job_ttl_seconds + 1
     job_store.prune()
@@ -231,9 +207,7 @@ async def test_pruned_page_token_is_rejected_without_transport(job_store, job_cl
 async def test_response_of_page_size_or_less_is_returned_without_pagination(fake_archicad):
     fake_archicad.on_tapir_command("GetSelectedElements", {"elements": _elements(100)})
 
-    result = await archicad_call_tool(
-        "elements_get_selected_elements", {"port": fake_archicad.port}
-    )
+    result = await archicad_call_tool("elements_get_selected_elements", {"port": fake_archicad.port})
 
     assert len(result["elements"]) == 100
     assert "next_page_token" not in result
@@ -281,9 +255,7 @@ async def test_raw_archicad_error_payload_is_preserved(fake_archicad):
         {"error": {"code": 4001, "message": "No open project."}},
     )
 
-    result = await archicad_call_tool(
-        "elements_get_selected_elements", {"port": fake_archicad.port}
-    )
+    result = await archicad_call_tool("elements_get_selected_elements", {"port": fake_archicad.port})
 
     assert result == {"error": {"code": 4001, "message": "No open project."}}
 
@@ -319,16 +291,14 @@ async def test_invalid_command_envelopes_are_rejected_before_transport(fake_arch
 async def test_port_string_is_coerced_and_dispatched(fake_archicad):
     fake_archicad.on_tapir_command("GetAddOnVersion", {"version": "1.0.0"})
 
-    result = await archicad_call_tool(
-        "app_get_add_on_version", {"port": str(fake_archicad.port)}
-    )
+    result = await archicad_call_tool("app_get_add_on_version", {"port": str(fake_archicad.port)})
 
     assert result == {"version": "1.0.0"}
     assert fake_archicad.calls[0][0] == "GetAddOnVersion"
 
 
 async def test_inactive_in_range_port_is_rejected_before_transport(fake_archicad):
-    with pytest.raises(ToolError, match="19724.*not an active Archicad connection"):
+    with pytest.raises(ToolError, match=r"19724.*not an active Archicad connection"):
         await archicad_call_tool("app_get_add_on_version", {"port": 19724})
 
     assert fake_archicad.calls == []

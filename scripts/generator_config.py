@@ -30,9 +30,11 @@ MULTICONN_SOURCE_URL = (
 )
 ORGANIZED_COMMANDS_URL = f"{MULTICONN_SOURCE_URL}/unified/temp_files/01_organized_commands.json"
 
+
 @dataclass
 class ApiSourceConfig:
     """Configuration settings for a single API source."""
+
     name: str
     details_url: str
     model_names_url: str
@@ -57,7 +59,6 @@ TAPIR_CONFIG = ApiSourceConfig(
         "Element Commands": "elements",
         "Element grouping Commands": "grouping",
         "Solid Element Operation Commands": "solid_ops_",
-
         # Domain specifics
         "MEP Commands": "mep",
         "Keynote Commands": "keynotes",
@@ -69,7 +70,6 @@ TAPIR_CONFIG = ApiSourceConfig(
         "Graphic Override Commands": "attributes",
         "Favorites Commands": "favorites",
         "Library Commands": "library",
-
         # Project & App structure
         "Application Commands": "app",
         "Project Commands": "project",
@@ -80,18 +80,18 @@ TAPIR_CONFIG = ApiSourceConfig(
         "Script UI Commands": "dev",
     },
     commands_to_exclude={
-        "GetProjectInfo", # discovery_list_active_archicads covers this
-        "GetArchicadLocation", # discovery_list_active_archicads covers this
-        "QuitArchicad", # AI probably shouldn't quit
-        "GenerateDocumentation", # command only for internal use
-        "ShowScriptUI", # used in apps
-        "GetScriptUIResult", # used in apps
+        "GetProjectInfo",  # discovery_list_active_archicads covers this
+        "GetArchicadLocation",  # discovery_list_active_archicads covers this
+        "QuitArchicad",  # AI probably shouldn't quit
+        "GenerateDocumentation",  # command only for internal use
+        "ShowScriptUI",  # used in apps
+        "GetScriptUIResult",  # used in apps
         "DeleteAttributes",  # official has a simpler interface for the same functionality (works for MEP systems)
         "DeleteNavigatorItems",  # same parameters as the Official command
         "MoveNavigatorItem",  # same parameters as the Official command
-        "GetGraphicalOverrideRules", # Duplicate command in 1.7.2
-        "CreateGraphicalOverrideRule", # Duplicate command in 1.7.2
-        "CreateGraphicalOverrideCombination", # Duplicate command in 1.7.2
+        "GetGraphicalOverrideRules",  # Duplicate command in 1.7.2
+        "CreateGraphicalOverrideRule",  # Duplicate command in 1.7.2
+        "CreateGraphicalOverrideCombination",  # Duplicate command in 1.7.2
     },
     paginated_commands={
         "GetAllElements": "elements",
@@ -116,7 +116,7 @@ TAPIR_CONFIG = ApiSourceConfig(
         "GetElectricalDevices": "electricalDevices",
         "GetElectricalPanels": "electricalPanels",
         "GetMEPSystemGroups": "systemGroups",
-    }
+    },
 )
 
 

@@ -63,7 +63,7 @@ def list_active_archicads() -> DiscoveryResult:
         multi_conn = multi_conn_instance.get()
     except LookupError:
         log.error("CRITICAL: multi_conn_instance context variable not set. Lifespan manager may have failed.")
-        raise RuntimeError("Server configuration error: could not access MultiConn instance.")
+        raise RuntimeError("Server configuration error: could not access MultiConn instance.") from None
 
     multi_conn.refresh.all_ports()
     multi_conn.connect.all()
@@ -74,7 +74,11 @@ def list_active_archicads() -> DiscoveryResult:
     for port, header in multi_conn.open_port_headers.items():
         if not isinstance(header.product_info, ProductInfo):
             unavailable_instances.append(_build_unresponsive_instance(header.product_info))
-        elif not isinstance(header.tapir_info, TapirInfo) or not header.tapir_info.is_installed or not header.tapir_info.version:
+        elif (
+            not isinstance(header.tapir_info, TapirInfo)
+            or not header.tapir_info.is_installed
+            or not header.tapir_info.version
+        ):
             unavailable_instances.append(_build_missing_tapir_instance())
         else:
             active_instances.append(_build_ready_instance(int(port), header))
@@ -93,7 +97,7 @@ def _build_unresponsive_instance(error: APIResponseError) -> UnavailableInstance
         message=(
             f"Archicad API error: '{error.message}'. "
             "If the error message is actionable, please prompt the user to resolve it."
-        )
+        ),
     )
 
 
@@ -106,7 +110,7 @@ def _build_missing_tapir_instance() -> UnavailableInstance:
             "The Tapir Add-On is required for AI automation. "
             "Please prompt the user to download and install it from: "
             "https://github.com/ENZYME-APD/tapir-archicad-automation"
-        )
+        ),
     )
 
 
@@ -262,7 +266,9 @@ async def archicad_call_tool(name: str, arguments: dict) -> dict:
         # Continuations read retained data and do not create execution jobs.
         return await asyncio.to_thread(_read_cached_page, name, tool_entry, validated_arguments, store)
     job = store.submit(
-        name, port, arguments,
+        name,
+        port,
+        arguments,
         lambda handle: _execute_tool(name, tool_entry, validated_arguments, handle),
     )
     await store.wait(job)
@@ -313,10 +319,15 @@ def _dispatch_command(name: str, tool_entry: ToolRegistryEntry, call_args: dict,
 
 
 def _pagination_request(
-    name: str, tool_entry: ToolRegistryEntry, arguments: Any, connection: ConnHeader | None,
+    name: str,
+    tool_entry: ToolRegistryEntry,
+    arguments: Any,
+    connection: ConnHeader | None,
 ) -> PaginationRequest:
     return PaginationRequest(
-        connection=connection, port=arguments.port, command=name,
+        connection=connection,
+        port=arguments.port,
+        command=name,
         parameters=_serialized_parameters(arguments.params if tool_entry.params_model else None),
         field=tool_entry.pagination_field,
     )
@@ -345,7 +356,10 @@ def _get_header(port: int) -> ConnHeader:
         "or failed with error. Polling never redispatches commands."
     ),
     annotations=ToolAnnotations(
-        readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False,
+        readOnlyHint=True,
+        destructiveHint=False,
+        idempotentHint=True,
+        openWorldHint=False,
     ),
 )
 async def archicad_get_job(job_handle: str | None = None) -> dict:
