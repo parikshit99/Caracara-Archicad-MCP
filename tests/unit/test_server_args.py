@@ -29,6 +29,8 @@ def _clear_http_env(monkeypatch):
             "ASYNC_THRESHOLD_SECONDS",
             "JOB_TTL_SECONDS",
             "MAX_COMPLETED_JOBS",
+            "ALLOW_REMOTE",
+            "OUTPUT_ROOT",
         ):
             monkeypatch.delenv(f"{prefix}{name}", raising=False)
 
@@ -71,7 +73,7 @@ def test_server_env_fallback_configuration(monkeypatch, mock_server_run):
     Tests that environment variables are correctly picked up and forwarded to
     the transport when no CLI overrides are provided.
     """
-    monkeypatch.setenv("TAPIR_MCP_HOST", "10.0.0.5")
+    monkeypatch.setenv("TAPIR_MCP_HOST", "::1")
     monkeypatch.setenv("TAPIR_MCP_PORT", "9999")
     monkeypatch.setenv("TAPIR_MCP_STREAMABLE_HTTP_PATH", "/env-http-path")
     monkeypatch.setenv("TAPIR_MCP_MOUNT_PATH", "/env-sse-path")
@@ -82,7 +84,7 @@ def test_server_env_fallback_configuration(monkeypatch, mock_server_run):
     main()
 
     mock_server_run.assert_called_once_with(
-        transport="streamable-http", host="10.0.0.5", port=9999, streamable_http_path="/env-http-path"
+        transport="streamable-http", host="::1", port=9999, streamable_http_path="/env-http-path"
     )
 
 
@@ -92,7 +94,7 @@ def test_server_cli_override_configuration(monkeypatch, mock_server_run):
     and resolves correctly on the transport call.
     """
     # Set environment variables that should be overridden
-    monkeypatch.setenv("TAPIR_MCP_HOST", "10.0.0.5")
+    monkeypatch.setenv("TAPIR_MCP_HOST", "::1")
     monkeypatch.setenv("TAPIR_MCP_PORT", "9999")
 
     # Pass different values via command line flags
@@ -104,7 +106,7 @@ def test_server_cli_override_configuration(monkeypatch, mock_server_run):
             "--transport",
             "sse",
             "--host",
-            "192.168.1.100",
+            "localhost",
             "--port",
             "7070",
             "--mount-path",
@@ -118,7 +120,7 @@ def test_server_cli_override_configuration(monkeypatch, mock_server_run):
     # Assert CLI overrides took precedence over ENVs
     mock_server_run.assert_called_once_with(
         transport="sse",
-        host="192.168.1.100",
+        host="localhost",
         port=7070,
         sse_path="/cli-sse-path/sse",
         message_path="/cli-sse-path/messages/",
@@ -202,8 +204,8 @@ def test_invalid_environment_is_rejected(monkeypatch):
 def test_server_caracara_env_precedence(monkeypatch, mock_server_run):
     """Tests that CARACARA_MCP_* overrides TAPIR_MCP_*."""
     _clear_http_env(monkeypatch)
-    monkeypatch.setenv("TAPIR_MCP_HOST", "10.0.0.1")
-    monkeypatch.setenv("CARACARA_MCP_HOST", "10.0.0.2")
+    monkeypatch.setenv("TAPIR_MCP_HOST", "localhost")
+    monkeypatch.setenv("CARACARA_MCP_HOST", "::1")
     monkeypatch.setenv("TAPIR_MCP_PORT", "8000")
     monkeypatch.setenv("CARACARA_MCP_PORT", "9000")
 
@@ -213,5 +215,32 @@ def test_server_caracara_env_precedence(monkeypatch, mock_server_run):
     main()
 
     mock_server_run.assert_called_once_with(
-        transport="streamable-http", host="10.0.0.2", port=9000, streamable_http_path="/mcp"
+        transport="streamable-http", host="::1", port=9000, streamable_http_path="/mcp"
     )
+
+
+@pytest.mark.parametrize("host", ["0.0.0.0", "192.168.1.100", "example.com", "::"])
+def test_non_loopback_host_is_refused_without_opt_in(monkeypatch, mock_server_run, host):
+    _clear_http_env(monkeypatch)
+    monkeypatch.setattr(sys, "argv", ["server.py", "--transport", "streamable-http", "--host", host])
+
+    from caracara_archicad_mcp.server import main
+    with pytest.raises(SystemExit, match="non-loopback"):
+        main()
+    mock_server_run.assert_not_called()
+
+
+def test_non_loopback_host_with_opt_in_still_requires_token(monkeypatch, mock_server_run):
+    _clear_http_env(monkeypatch)
+    monkeypatch.setattr(sys, "argv", ["server.py", "--transport", "sse", "--host", "0.0.0.0", "--allow-remote"])
+
+    from caracara_archicad_mcp.server import main
+    with pytest.raises(SystemExit, match="requires --token"):
+        main()
+    mock_server_run.assert_not_called()
+
+
+@pytest.mark.parametrize("host", ["127.0.0.1", "127.0.0.5", "localhost", "::1", "[::1]"])
+def test_loopback_hosts_are_accepted(host):
+    from caracara_archicad_mcp.server import is_loopback_host
+    assert is_loopback_host(host)

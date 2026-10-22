@@ -19,6 +19,7 @@ from pydantic import ValidationError
 
 from caracara_archicad_mcp.app import mcp
 from caracara_archicad_mcp.context import job_store_instance, multi_conn_instance
+from caracara_archicad_mcp.file_paths import confine_write_paths
 from caracara_archicad_mcp.jobs import JobStore
 from caracara_archicad_mcp.pagination import PaginationRequest, prepare_result
 from caracara_archicad_mcp.request_lifecycle import DispatchLifecycle
@@ -36,6 +37,7 @@ from caracara_archicad_mcp.tools.tool_registry import (
     get_tool_entry,
     get_tool_input_schema,
 )
+from caracara_archicad_mcp.validation_errors import summarize_validation_error
 
 log = logging.getLogger()
 
@@ -154,12 +156,9 @@ def _get_tapir_version_warning(tapir: TapirInfo) -> str | None:
     name="archicad_list_commands",
     title="List Available Archicad Commands [DEPRECATED]",
     description=(
-        "[DEPRECATED: Prefer polymorphic meta-verbs 'archicad_query' and 'archicad_mutate'] "
-        "Returns a comprehensive list of all available Archicad API commands and brief descriptions. "
-        "STEP 1: Use this tool FIRST to search for the right command name for your task. "
-        "Do NOT guess or hallucinate command names. "
-        "STEP 2: Once you find the relevant command name, you MUST use the 'archicad_get_command_schema' "
-        "tool to learn its exact required arguments."
+        "Lists every Archicad command name with a short description. Prefer archicad_query/archicad_mutate "
+        "when they cover the task; otherwise pick a name here and read its schema with "
+        "archicad_get_command_schema before calling it."
     ),
     annotations=ToolAnnotations(
         readOnlyHint=True,
@@ -183,11 +182,8 @@ def archicad_list_commands() -> list[CommandOverview]:
     name="archicad_get_command_schema",
     title="Get Archicad Command Schema [DEPRECATED]",
     description=(
-        "[DEPRECATED: Prefer polymorphic meta-verbs 'archicad_query' and 'archicad_mutate'] "
-        "Retrieves the exact JSON schema (required arguments) for a specific Archicad command. "
-        "Provide the exact 'command_name' obtained from 'archicad_list_commands'. "
-        "CRITICAL: You MUST call this tool before executing 'archicad_call_tool' to ensure you provide "
-        "the correct parameters. Do NOT guess or hallucinate parameters based on the command name."
+        "Returns the JSON schema of one command's 'arguments', for a name from archicad_list_commands. "
+        "Call it before archicad_call_tool rather than guessing parameters."
     ),
     annotations=ToolAnnotations(
         readOnlyHint=True,
@@ -216,16 +212,11 @@ def archicad_get_command_schema(command_name: str) -> CommandSchema:
     name="archicad_call_tool",
     title="Execute Archicad API Command [DEPRECATED]",
     description=(
-        "[DEPRECATED: Prefer polymorphic meta-verbs 'archicad_query' and 'archicad_mutate'] "
-        "Executes a specific Archicad API command by its 'name'. "
-        "CRITICAL WORKFLOW: You MUST use 'archicad_get_command_schema' first to understand the exact "
-        "JSON structure required for the 'arguments' parameter. "
-        "The 'arguments' dictionary MUST contain a 'port' number (obtained from 'discovery_list_active_archicads'). "
-        "If a tool's response includes a 'next_page_token', call this same tool again with the same parameters "
-        "and add a 'page_token' key to the 'arguments' dictionary. "
-        "Long executions return status='running' and a jobHandle; retrieve them with archicad_get_job. "
-        "If a response is lost or cancelled, list jobs with archicad_get_job() before retrying a write. "
-        "Cancelling this request does not cancel an admitted execution."
+        "Executes an Archicad command by 'name' with 'arguments' matching its schema, including the 'port' "
+        "from discovery_list_active_archicads. For a 'next_page_token', repeat the call with 'page_token' added "
+        "to 'arguments'. Long runs return status='running' and a jobHandle for archicad_get_job; after a lost "
+        "response, list jobs with archicad_get_job() before retrying a write. Files Archicad writes are confined "
+        "to the server's output directory; relative paths are placed there."
     ),
     annotations=ToolAnnotations(
         readOnlyHint=False,
@@ -259,8 +250,11 @@ async def archicad_call_tool(name: str, arguments: dict) -> dict:
     try:
         validated_arguments = tool_entry.arguments_model.model_validate(arguments)
     except ValidationError as e:
-        log.error(f"Validation error for arguments of {name}: {e}")
-        raise ToolError(f"Invalid arguments provided for tool '{name}'. Validation details: {e}") from e
+        summary = summarize_validation_error(e)
+        log.error(f"Validation error for arguments of {name}: {summary}")
+        raise ToolError(f"Invalid arguments provided for tool '{name}'. Validation details: {summary}") from None
+    if tool_entry.params_model:
+        validated_arguments.params = confine_write_paths(validated_arguments.params)
 
     store = job_store_instance.get()
     port = validated_arguments.port
