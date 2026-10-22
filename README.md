@@ -9,7 +9,7 @@ A personal, experimental fork of [tapir-archicad-MCP](https://github.com/Szamosi
 
 It acts as a bridge, allowing AI agents and applications (like Claude for Desktop, Claude Code, or Gemini CLI) to interact with running Archicad instances by wrapping both the community-driven **Tapir API** and the **official Archicad JSON API**.
 
-The server dynamically generates a comprehensive set of **191+** MCP tools from the combined API schemas, enabling fine-grained control over Archicad BIM projects.
+The server dynamically generates a comprehensive set of **350+** MCP tools from the combined API schemas, enabling fine-grained control over Archicad BIM projects.
 
 ---
 
@@ -28,7 +28,7 @@ This fork contains personal experiments and custom utilities tailored for specif
 -   **Pydantic-Powered Runtime Validation & Schema Generation:** Every tool's input and output shapes are backed by rigorous Pydantic models. The server dynamically compiles these into detailed JSON Schemas for the AI agent to inspect, and strictly validates all incoming tool arguments at runtime *before* forwarding them to Archicad. It handles complex models, Union types, and TypeAliases seamlessly.
 -   **Progressive Tool Discovery (CLI-style):** The server uses a deterministic workflow (`archicad_list_commands` and `archicad_get_command_schema`) that allows AI agents to list available commands and fetch exact parameter schemas on demand. This avoids flooding the model's context window with large schemas.
 -   **No Heavy Machine-Learning Dependencies:** Vector-based search has been removed. The server does not require heavy packages like PyTorch, `faiss-cpu`, or `sentence-transformers`, dramatically reducing package size and eliminating startup delays.
--   **Massive Toolset, Minimal Footprint:** Provides access to a unified toolset of **191+ commands** by merging the community Tapir API and the official Archicad JSON API.
+-   **Massive Toolset, Minimal Footprint:** Provides access to a unified toolset of **350+ commands** (302 Tapir + 49 Official) by merging the community Tapir API and the official Archicad JSON API.
 -   **Flexible Network Transports:** Supports `sse` (Server-Sent Events) and `streamable-http` transports in addition to standard input/output (`stdio`), allowing the server to be run on remote host configurations.
 -   **Bearer Token Authentication:** Secures HTTP endpoints when using SSE or Streamable-HTTP via an opt-in token validation middleware (`--token` flag or `CARACARA_MCP_TOKEN` / `TAPIR_MCP_TOKEN` environment variable).
 -   **Multi-Instance Control:** Connect to and manage multiple running Archicad instances simultaneously, targeting commands to specific instances via port numbers.
