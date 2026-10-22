@@ -2,12 +2,14 @@
 
 An extended Model Context Protocol (MCP) server for Archicad automation, based on [tapir-archicad-MCP](https://github.com/SzamosiMate/tapir-archicad-MCP).
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Status](https://img.shields.io/badge/status-fork%20%7C%20active-blue.svg)]()
+
+> **Note:** This is a downstream, fast-moving fork of [SzamosiMate/tapir-archicad-MCP](https://github.com/SzamosiMate/tapir-archicad-MCP) maintained for custom workflows and experimental Archicad tool bindings. All core credit belongs to Szamosi Mate. If you need the stable upstream release, visit the original repository.
+
 It acts as an intelligent bridge, allowing AI agents and applications (like Claude for Desktop, Claude Code, or Gemini CLI) to interact with running Archicad instances by wrapping both the community-driven **Tapir API** and the **official Archicad JSON API**.
 
 The server dynamically generates a comprehensive set of **191+** MCP tools from the combined API schemas, enabling fine-grained, resilient control over Archicad BIM projects.
-
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Status](https://img.shields.io/badge/status-fork%20%7C%20active-blue.svg)]()
 
 ---
 
@@ -15,7 +17,6 @@ The server dynamically generates a comprehensive set of **191+** MCP tools from 
 
 In addition to core Tapir MCP capabilities, **Caracara** introduces enhancements designed for high-performance AI agent workflows:
 
--   **Script Sandboxing (`script_sandbox`):** Execute multi-step batch operations within an isolated, high-speed execution sandbox directly alongside Archicad to avoid round-trip latency.
 -   **Field Masking & Projection (`field_masking`):** Selectively filter and project element properties and model hierarchies to drastically reduce token consumption and eliminate context-window bloat.
 -   **Polymorphic Meta-Verbs (`meta_verbs`):** High-level semantic actions that simplify complex BIM workflows (querying, transforming, grouping) into ergonomic agent primitives.
 -   **Result Registry & Caching (`result_registry`):** Server-side handle storage and virtual element sets for referencing large query results across conversational turns without re-fetching.
@@ -160,7 +161,7 @@ The server operates through a layered architecture:
 
 -   **AI Agent (e.g., Claude):** Interprets user prompts and orchestrates tool discovery.
 -   **MCP Client (e.g., Claude for Desktop):** Manages the server process and handles communication.
--   **MCP Server (Caracara):** Standardizes tool descriptions, parameters, sandboxing, and results, presenting a clean `list`/`schema`/`call` interface.
+-   **MCP Server (Caracara):** Standardizes tool descriptions, parameters, and results, presenting a clean `list`/`schema`/`call` interface.
 -   **`multiconn_archicad` Library:** Resolves active socket connections and handles low-level command dispatch to Archicad instances.
 -   **Archicad & Tapir Add-On:** Built-in APIs and Tapir Add-on execute commands and return structured data.
 
@@ -173,7 +174,7 @@ The server operates through a layered architecture:
 We are deeply grateful to Máté and the [Enzyme APD](https://github.com/ENZYME-APD/tapir-archicad-automation) team for developing the Archicad automation ecosystem and making it open-source.
 
 **Why this fork?**  
-Caracara explores advanced agentic extensions—including script sandboxing, polymorphic meta-verbs, field masking, and virtual element sets. Wherever possible, improvements and bug fixes applicable to the core server are contributed back upstream.
+Caracara explores advanced agentic extensions—including polymorphic meta-verbs, field masking, and virtual element sets. Wherever possible, improvements and bug fixes applicable to the core server are contributed back upstream.
 
 *Note: For issues or feature requests related specifically to Caracara, please use the [Caracara Issue Tracker](https://github.com/parikshit99/caracara-archicad/issues) to avoid burdening upstream maintainers.*
 
