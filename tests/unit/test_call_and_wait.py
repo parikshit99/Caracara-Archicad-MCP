@@ -61,3 +61,35 @@ async def test_gives_up_after_the_limit(archicad):
 
     with pytest.raises(ToolError, match="still working"):
         await call_and_wait("project_get_stories", {"port": 19723}, limit_seconds=-1)
+
+
+@pytest.mark.asyncio
+async def test_collect_follows_every_page(monkeypatch):
+    pages = {
+        None: {"attributes": [1, 2], "next_page_token": "p2"},
+        "p2": {"attributes": [3], "next_page_token": "p3"},
+        "p3": {"attributes": [4]},
+    }
+
+    async def call_tool(name, arguments):
+        return pages[arguments.get("page_token")]
+
+    monkeypatch.setattr(functions, "archicad_call_tool", call_tool)
+
+    assert await functions.call_and_collect("attributes_get_attributes_by_type", {"port": 1}, "attributes") == [
+        1,
+        2,
+        3,
+        4,
+    ]
+
+
+@pytest.mark.asyncio
+async def test_collect_needs_the_field(monkeypatch):
+    async def call_tool(name, arguments):
+        return {"error": {"message": "unavailable"}}
+
+    monkeypatch.setattr(functions, "archicad_call_tool", call_tool)
+
+    with pytest.raises(ToolError, match="no 'attributes'"):
+        await functions.call_and_collect("attributes_get_attributes_by_type", {"port": 1}, "attributes")

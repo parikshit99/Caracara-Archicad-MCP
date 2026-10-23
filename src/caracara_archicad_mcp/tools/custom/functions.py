@@ -395,3 +395,17 @@ async def call_and_wait(name: str, arguments: dict, limit_seconds: float = JOB_W
         if response["status"] == "completed":
             result = response["result"]
     return result
+
+
+async def call_and_collect(name: str, arguments: dict, field: str) -> list[Any]:
+    """Every item of a listing command's result field, across all pages, in order."""
+    result = await call_and_wait(name, arguments)
+    if not isinstance(result, dict) or not isinstance(result.get(field), list):
+        raise ToolError(f"Archicad returned no '{field}': {result}")
+    items = list(result[field])
+    token = result.get("next_page_token")
+    while token:
+        page = await archicad_call_tool(name, {**arguments, "page_token": token})
+        items.extend(page.get(field, []))
+        token = page.get("next_page_token")
+    return items
