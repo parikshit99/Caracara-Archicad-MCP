@@ -217,7 +217,7 @@ async def archicad_query(  # noqa: C901 - predates REVIEW.md R7; split when next
             raw_elements = raw_res.get("elements", [])
         element_type = "Classified"
 
-    elif target_lower in ("filter", "filtered") or (filter and "criterias" in filter and "elements" in filter):
+    elif target_lower in ("filter", "filtered"):
         if not filter:
             raise ToolError("When target is 'filter', filter dictionary must be provided.")
         raw_res = await archicad_call_tool("elements_filter_elements", {"port": target_port, "params": filter})
