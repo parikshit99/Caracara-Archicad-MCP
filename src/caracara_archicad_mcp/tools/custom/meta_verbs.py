@@ -82,7 +82,7 @@ def _normalize_element_type(target: str) -> str:
     return type_map.get(cleaned, target.strip())
 
 
-def _itemize(result: Any, element_ids: list[dict[str, Any]], invalid: list[dict[str, Any]]) -> Any:
+def _itemize(result: Any, ids: list[dict[str, Any]], invalid: list[dict[str, Any]]) -> Any:
     """Attach per-element failures to a batch result without raising.
 
     Elements deleted, moved or locked after their set was created come back from
@@ -94,12 +94,12 @@ def _itemize(result: Any, element_ids: list[dict[str, Any]], invalid: list[dict[
     failures = list(invalid)
     execution_results = result.get("executionResults")
     if isinstance(execution_results, list):
-        aligned = len(execution_results) == len(element_ids)
+        aligned = len(execution_results) == len(ids)
         for index, item in enumerate(execution_results):
             if isinstance(item, dict) and item.get("success") is False:
                 failure: dict[str, Any] = {"error": item.get("error", {})}
                 if aligned:
-                    failure["elementId"] = element_ids[index]
+                    failure["elementId"] = ids[index]
                 else:
                     failure["index"] = index
                 failures.append(failure)
