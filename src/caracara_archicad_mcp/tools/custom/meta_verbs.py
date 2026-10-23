@@ -178,7 +178,7 @@ def _vector(payload: dict[str, Any]) -> dict[str, float]:
         openWorldHint=True,
     ),
 )
-async def archicad_query(
+async def archicad_query(  # noqa: C901 - predates REVIEW.md R7; split when next changed
     target: str,
     filter: dict[str, Any] | None = None,
     output: list[str] | str | None = None,
@@ -311,7 +311,7 @@ async def archicad_query(
         openWorldHint=True,
     ),
 )
-async def archicad_mutate(
+async def archicad_mutate(  # noqa: C901 - predates REVIEW.md R7; split when next changed
     target_set: str | list[Any],
     action: str,
     payload: dict[str, Any] | None = None,
