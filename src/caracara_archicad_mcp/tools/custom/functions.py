@@ -38,7 +38,7 @@ from caracara_archicad_mcp.tools.tool_registry import (
     get_tool_entry,
     get_tool_input_schema,
 )
-from caracara_archicad_mcp.validation_errors import summarize_validation_error
+from caracara_archicad_mcp.validation_errors import group_validation_errors, summarize_validation_error
 
 log = logging.getLogger()
 
@@ -264,7 +264,9 @@ async def archicad_call_tool(name: str, arguments: dict) -> dict:
         validated_arguments = tool_entry.arguments_model.model_validate(arguments)
     except ValidationError as e:
         summary = summarize_validation_error(e)
-        log.error(f"Validation error for arguments of {name}: {summary}")
+        # The log names the fields only: the values can be model data (REVIEW.md R13).
+        fields = sorted({group["field"] for group in group_validation_errors(e)})
+        log.error(f"Invalid arguments for {name} in: {', '.join(fields)}")
         raise ToolError(f"Invalid arguments provided for tool '{name}'. Validation details: {summary}") from None
     if tool_entry.params_model:
         validated_arguments.params = confine_write_paths(validated_arguments.params)

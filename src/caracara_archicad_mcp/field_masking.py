@@ -1,98 +1,48 @@
-"""Client-side field masking and projection for element detail inspection.
+"""Keeping only the requested fields of element details.
 
-Filters out raw coordinates, polygon arrays, or unrequested properties before
-building the return payload, eliminating column bloat in LLM context.
+Element details carry polygons and other bulky data the model rarely needs, so reads
+can name the fields to return. Names are matched exactly (or as dot paths) rather
+than guessed; requested names that no element has are reported back.
 """
 
 from __future__ import annotations
 
-import re
 from typing import Any
 
-
-def _to_snake_case(s: str) -> str:
-    """Convert camelCase or PascalCase to snake_case."""
-    return re.sub(r"(?<!^)(?=[A-Z])", "_", s).lower()
+# Archicad's element details call a story a floor; agents ask for either.
+STORY_ALIASES = {"storyIndex": "floorIndex", "floorIndex": "storyIndex"}
 
 
-def project_element(item: dict[str, Any], fields: list[str]) -> dict[str, Any]:  # noqa: C901 - predates REVIEW.md R7; split when next changed
-    """Project an element dictionary to only include requested fields.
+def _lookup(item: dict[str, Any], field: str) -> tuple[bool, Any]:
+    """The value at a field name or dot path ('details.thickness'), and whether it exists."""
+    current: Any = item
+    for part in field.split("."):
+        if not isinstance(current, dict) or part not in current:
+            return False, None
+        current = current[part]
+    return True, current
 
-    Strips polygon arrays, raw coordinates, internal memos, and any other
-    unrequested properties.
-    """
+
+def _place(projected: dict[str, Any], field: str, value: Any) -> None:
+    """Store a value under its field name, nesting dot paths as in the source."""
+    *parents, last = field.split(".")
+    for part in parents:
+        projected = projected.setdefault(part, {})
+    projected[last] = value
+
+
+def project_element(item: dict[str, Any], fields: list[str]) -> dict[str, Any]:
+    """Keep only the requested fields of an element: exact names, dot paths, and storyIndex/floorIndex."""
     if not fields:
         return item
 
     projected: dict[str, Any] = {}
-    lower_to_key = {k.lower(): k for k in item}
-    snake_to_key = {_to_snake_case(k): k for k in item}
-
     for field in fields:
-        # 1. Exact match
-        if field in item:
-            projected[field] = item[field]
-            continue
-
-        # 2. Case-insensitive or snake_case match
-        field_lower = field.lower()
-        if field_lower in lower_to_key:
-            matched_key = lower_to_key[field_lower]
-            projected[field] = item[matched_key]
-            continue
-
-        field_snake = _to_snake_case(field)
-        if field_snake in snake_to_key:
-            matched_key = snake_to_key[field_snake]
-            projected[field] = item[matched_key]
-            continue
-
-        # 3. Known domain aliases: storyIndex <-> floorIndex
-        if field in ("storyIndex", "story_index"):
-            if "floorIndex" in item:
-                projected["storyIndex"] = item["floorIndex"]
-                continue
-            if "floor_index" in item:
-                projected["storyIndex"] = item["floor_index"]
-                continue
-
-        if field in ("floorIndex", "floor_index"):
-            if "storyIndex" in item:
-                projected["floorIndex"] = item["storyIndex"]
-                continue
-            if "story_index" in item:
-                projected["floorIndex"] = item["story_index"]
-                continue
-
-        # 4. Dot-notation (e.g. 'details.geometryType')
-        if "." in field:
-            parts = field.split(".")
-            curr = item
-            found = True
-            for part in parts:
-                if isinstance(curr, dict) and part in curr:
-                    curr = curr[part]
-                else:
-                    found = False
-                    break
-            if found:
-                # Nest structure in projected output
-                curr_target = projected
-                for part in parts[:-1]:
-                    curr_target = curr_target.setdefault(part, {})
-                curr_target[parts[-1]] = curr
-            continue
-
-        # 5. Fallback lookup inside nested 'details' sub-dictionary
-        if "details" in item and isinstance(item["details"], dict):
-            details_dict = item["details"]
-            if field in details_dict:
-                projected[field] = details_dict[field]
-                continue
-            details_lower = {k.lower(): k for k in details_dict}
-            if field_lower in details_lower:
-                projected[field] = details_dict[details_lower[field_lower]]
-                continue
+        found, value = _lookup(item, field)
+        if not found and field in STORY_ALIASES:
+            found, value = _lookup(item, STORY_ALIASES[field])
+        if found:
+            _place(projected, field, value)
 
     # Per-element failures (e.g. an element deleted after its set was created)
     # must survive projection, or the caller cannot tell a ghost from a match.
@@ -100,6 +50,12 @@ def project_element(item: dict[str, Any], fields: list[str]) -> dict[str, Any]: 
         projected["error"] = item["error"]
 
     return projected
+
+
+def _unknown_fields(elements: list[Any], fields: list[str]) -> list[str]:
+    """Requested fields that no element has, so the caller can correct the name instead of guessing."""
+    found = {field for elem in elements if isinstance(elem, dict) for field in fields if _lookup(elem, field)[0]}
+    return [field for field in fields if field not in found]
 
 
 def prune_payload(
@@ -130,6 +86,8 @@ def prune_payload(
                 result[key] = [
                     project_element(elem, fields) if isinstance(elem, dict) else elem for elem in payload[key]
                 ]
+                if unknown := _unknown_fields(result[key], fields):
+                    result["unknownFields"] = unknown
 
         if not found_target_list:
             # If no known list key is present, check if payload itself is a single element dictionary
