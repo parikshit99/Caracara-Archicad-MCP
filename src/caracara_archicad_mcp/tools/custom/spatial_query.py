@@ -9,7 +9,6 @@ for archicad_query, archicad_calculate or archicad_mutate.
 
 from __future__ import annotations
 
-import time
 from collections import Counter
 from typing import Any, Literal
 
@@ -19,61 +18,39 @@ from mcp.types import ToolAnnotations
 from caracara_archicad_mcp.app import mcp
 from caracara_archicad_mcp.result_registry import ResultRegistry
 from caracara_archicad_mcp.spatial import Box, containers_of, pairs_within
-from caracara_archicad_mcp.tools.custom.functions import archicad_call_tool, archicad_get_job
-from caracara_archicad_mcp.tools.custom.meta_verbs import _element_ids, _is_running
+from caracara_archicad_mcp.tools.custom.element_sets import element_ids, target_elements
+from caracara_archicad_mcp.tools.custom.functions import call_and_wait
 
 MAX_ELEMENTS = 100_000
 MAX_LISTED = 20
-JOB_WAIT_LIMIT_SECONDS = 600.0
 
 
 def _resolve(target: str | list[Any], label: str) -> list[dict[str, Any]]:
-    if isinstance(target, str):
-        elements = ResultRegistry.get_or_tool_error(target)
-    elif isinstance(target, list):
-        elements = target
-    else:
-        raise ToolError(f"{label} must be a setId (str) or a list of elements.")
-    element_ids, _ = _element_ids(elements)
-    if not element_ids:
+    ids, _ = element_ids(target_elements(target, label))
+    if not ids:
         raise ToolError(f"{label} contains no elements.")
-    if len(element_ids) > MAX_ELEMENTS:
-        raise ToolError(f"{label} has {len(element_ids)} elements; use at most {MAX_ELEMENTS}.")
-    return element_ids
+    if len(ids) > MAX_ELEMENTS:
+        raise ToolError(f"{label} has {len(ids)} elements; use at most {MAX_ELEMENTS}.")
+    return ids
 
 
-async def _finished(name: str, arguments: dict[str, Any]) -> Any:
-    """Run a read command, waiting for it when Archicad takes longer than the async threshold."""
-    result = await archicad_call_tool(name, arguments)
-    deadline = time.monotonic() + JOB_WAIT_LIMIT_SECONDS
-    while _is_running(result):
-        if time.monotonic() > deadline:
-            raise ToolError("Archicad is still computing; try again with fewer elements.")
-        response = await archicad_get_job(result["jobHandle"])
-        if response["status"] == "failed":
-            raise ToolError(f"Archicad could not answer: {response.get('error')}")
-        if response["status"] == "completed":
-            result = response["result"]
-    return result
-
-
-async def _boxes(element_ids: list[dict[str, Any]], port: int) -> tuple[list[Box], int]:
+async def _boxes(ids: list[dict[str, Any]], port: int) -> tuple[list[Box], int]:
     """The 3D bounding boxes of the elements, and how many elements have none (2D-only elements)."""
-    result = await _finished(
+    result = await call_and_wait(
         "elements_get3_d_bounding_boxes",
-        {"port": port, "params": {"elements": [{"elementId": e} for e in element_ids]}},
+        {"port": port, "params": {"elements": [{"elementId": e} for e in ids]}},
     )
     items = result.get("boundingBoxes3D") if isinstance(result, dict) else None
-    if not isinstance(items, list) or len(items) != len(element_ids):
+    if not isinstance(items, list) or len(items) != len(ids):
         raise ToolError(f"Archicad returned no bounding boxes: {result}")
     boxes: list[Box] = []
-    for elem_id, item in zip(element_ids, items, strict=True):
+    for elem_id, item in zip(ids, items, strict=True):
         box = item.get("boundingBox3D") if isinstance(item, dict) else None
         if isinstance(box, dict):
             boxes.append(
                 Box(elem_id["guid"], box["xMin"], box["yMin"], box["zMin"], box["xMax"], box["yMax"], box["zMax"])
             )
-    return boxes, len(element_ids) - len(boxes)
+    return boxes, len(ids) - len(boxes)
 
 
 def _new_set(guids: set[str] | list[str], label: str) -> str | None:
@@ -129,7 +106,7 @@ async def _inside(targets: list[dict], containers: list[dict], port: int) -> dic
 
 
 async def _collides(targets: list[dict], others: list[dict], port: int) -> dict[str, Any]:
-    result = await _finished(
+    result = await call_and_wait(
         "elements_get_collisions",
         {
             "port": port,
