@@ -50,21 +50,17 @@ def test_project_element_resolves_floor_index_alias():
     assert "internalMemos" not in projected
 
 
-def test_project_element_case_insensitivity_and_snake_case():
-    """Confirms field matching works across snake_case and camelCase."""
+def test_project_element_matches_names_exactly():
+    """Field names are matched as written; other spellings are not guessed."""
     element = {
         "layerIndex": 12,
         "drawIndex": 5,
         "polygonVertices": [[0, 0]],
     }
 
-    projected = project_element(element, fields=["layer_index", "drawIndex"])
+    projected = project_element(element, fields=["layer_index", "LayerIndex", "drawIndex"])
 
-    assert projected == {
-        "layer_index": 12,
-        "drawIndex": 5,
-    }
-    assert "polygonVertices" not in projected
+    assert projected == {"drawIndex": 5}
 
 
 def test_project_element_nested_dot_notation():
@@ -89,24 +85,34 @@ def test_project_element_nested_dot_notation():
     assert "polygonVertices" not in projected
 
 
-def test_project_element_sub_details_fallback():
-    """Confirms un-nested field names can extract directly from details dictionary."""
+def test_project_element_needs_the_path_for_nested_details():
+    """A field inside 'details' is reached by its dot path, not by searching nested objects."""
     element = {
         "id": "WALL-02",
-        "polygonVertices": [[0, 0]],
-        "details": {
-            "geometryType": "Straight",
-            "structureType": "Composite",
-        },
+        "details": {"geometryType": "Straight", "structureType": "Composite"},
     }
 
-    projected = project_element(element, fields=["id", "geometryType"])
+    assert project_element(element, fields=["id", "geometryType"]) == {"id": "WALL-02"}
+    assert project_element(element, fields=["details.geometryType"]) == {"details": {"geometryType": "Straight"}}
 
-    assert projected == {
-        "id": "WALL-02",
-        "geometryType": "Straight",
+
+def test_prune_payload_reports_names_no_element_has():
+    payload = {
+        "detailsOfElements": [
+            {"id": "W-1", "floorIndex": 0, "details": {"thickness": 0.3}},
+            {"error": {"code": 1, "message": "deleted"}},
+        ]
     }
-    assert "polygonVertices" not in projected
+
+    result = prune_payload(payload, fields=["id", "storyIndex", "details.thickness", "layer_index", "Thickness"])
+
+    assert result["detailsOfElements"][0] == {"id": "W-1", "storyIndex": 0, "details": {"thickness": 0.3}}
+    assert result["unknownFields"] == ["layer_index", "Thickness"]
+
+
+def test_prune_payload_reports_nothing_when_every_name_is_found():
+    result = prune_payload({"detailsOfElements": [{"id": "W-1"}]}, fields=["id"])
+    assert "unknownFields" not in result
 
 
 def test_prune_payload_preserves_metadata():
