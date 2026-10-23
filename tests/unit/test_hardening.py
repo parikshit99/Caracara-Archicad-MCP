@@ -423,3 +423,17 @@ def test_confined_path_creates_missing_parent_folders(output_root):
     resolved = Path(file_paths.confine_path("exports/nested/window.png"))
     assert resolved.parent.is_dir()
     assert resolved.parent.is_relative_to(output_root)
+
+
+@pytest.mark.asyncio
+async def test_invalid_arguments_are_logged_without_their_values(fake_archicad, caplog):
+    """REVIEW.md R13: values the model sent can be project data, so the log names only the fields."""
+    with caplog.at_level("ERROR"), pytest.raises(ToolError, match="CONFIDENTIAL-CLIENT"):
+        await archicad_call_tool(
+            "elements_get_elements_by_type",
+            {"port": fake_archicad.port, "params": {"elementType": "CONFIDENTIAL-CLIENT"}},
+        )
+
+    logged = " ".join(record.getMessage() for record in caplog.records)
+    assert "params.elementType" in logged
+    assert "CONFIDENTIAL-CLIENT" not in logged
