@@ -218,7 +218,7 @@ This fork is maintained purely as a personal sandbox and experimental testbed fo
 
 *For issues or questions about this fork, please use the [Caracara issue tracker](https://github.com/parikshit99/Caracara-Archicad-MCP/issues) rather than the upstream one.*
 
-Icon artwork is the official Tapir mark from [ENZYME-APD/tapir-archicad-automation](https://github.com/ENZYME-APD/tapir-archicad-automation) (`branding/logo/png/tapir_logo_black_512.png`), MIT, Copyright 2024 Enzyme APD.
+The Caracara icon is this project's own artwork, a crested caracara; the full-size version is in [`branding/`](branding/).
 
 ---
 
