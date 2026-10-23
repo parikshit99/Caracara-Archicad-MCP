@@ -3,93 +3,59 @@
 A personal, experimental fork of [tapir-archicad-MCP](https://github.com/SzamosiMate/tapir-archicad-MCP) for custom Archicad automation workflows.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Status](https://img.shields.io/badge/status-fork%20%7C%20active-blue.svg)]()
+[![CI](https://github.com/parikshit99/Caracara-Archicad-MCP/actions/workflows/test.yml/badge.svg?branch=master)](https://github.com/parikshit99/Caracara-Archicad-MCP/actions/workflows/test.yml)
+[![Latest release](https://img.shields.io/github/v/release/parikshit99/Caracara-Archicad-MCP)](https://github.com/parikshit99/Caracara-Archicad-MCP/releases/latest)
 
-> **Note:** This is a downstream, fast-moving fork of [SzamosiMate/tapir-archicad-MCP](https://github.com/SzamosiMate/tapir-archicad-MCP) maintained for custom workflows and experimental Archicad tool bindings. All core credit belongs to Szamosi Mate. If you need the stable upstream release, visit the original repository.
+> **Note:** This is a downstream, fast-moving fork of [SzamosiMate/tapir-archicad-MCP](https://github.com/SzamosiMate/tapir-archicad-MCP) maintained for custom workflows and experimental Archicad tool bindings. All core credit belongs to Máté Szamosi. If you need the stable upstream release, visit the original repository.
 
-It acts as a bridge, allowing AI agents and applications (like Claude for Desktop, Claude Code, or Gemini CLI) to interact with running Archicad instances by wrapping both the community-driven **Tapir API** and the **official Archicad JSON API**.
-
-The server dynamically generates a comprehensive set of **350+** MCP tools from the combined API schemas, enabling fine-grained control over Archicad BIM projects.
-
----
-
-## Custom Workflows in this Fork
-
-This fork contains personal experiments and custom utilities tailored for specific agent workflows:
-
--   **Field Masking & Projection (`field_masking`):** Allows selectively filtering and projecting element properties to reduce payload sizes.
--   **Custom Meta-Verbs (`meta_verbs`):** Utility actions (`archicad_query`, `archicad_mutate`) exploring consolidated multi-step operations.
--   **Result Registry (`result_registry`):** In-memory handle storage for referencing large query result sets across conversational turns without re-fetching.
+The server is a bridge that lets AI agents and applications (Claude Desktop, Claude Code, Gemini CLI and other MCP clients) work with running Archicad instances. It wraps both the community **Tapir API** and the **official Archicad JSON API**: **351 commands** (302 Tapir + 49 official), generated from the schemas published by [`multiconn_archicad`](https://github.com/SzamosiMate/multiconn_archicad).
 
 ---
 
-## Key Features
+## What This Fork Adds
 
--   **Pydantic-Powered Runtime Validation & Schema Generation:** Every tool's input and output shapes are backed by rigorous Pydantic models. The server dynamically compiles these into detailed JSON Schemas for the AI agent to inspect, and strictly validates all incoming tool arguments at runtime *before* forwarding them to Archicad. It handles complex models, Union types, and TypeAliases seamlessly.
--   **Progressive Tool Discovery (CLI-style):** The server uses a deterministic workflow (`archicad_list_commands` and `archicad_get_command_schema`) that allows AI agents to list available commands and fetch exact parameter schemas on demand. This avoids flooding the model's context window with large schemas.
--   **No Heavy Machine-Learning Dependencies:** Vector-based search has been removed. The server does not require heavy packages like PyTorch, `faiss-cpu`, or `sentence-transformers`, dramatically reducing package size and eliminating startup delays.
--   **Massive Toolset, Minimal Footprint:** Provides access to a unified toolset of **350+ commands** (302 Tapir + 49 Official) by merging the community Tapir API and the official Archicad JSON API.
--   **Flexible Network Transports:** Supports `sse` (Server-Sent Events) and `streamable-http` transports in addition to standard input/output (`stdio`), allowing the server to be run on remote host configurations.
--   **Bearer Token Authentication:** Secures HTTP endpoints when using SSE or Streamable-HTTP via an opt-in token validation middleware (`--token` flag or `CARACARA_MCP_TOKEN` / `TAPIR_MCP_TOKEN` environment variable).
--   **Multi-Instance Control:** Connect to and manage multiple running Archicad instances simultaneously, targeting commands to specific instances via port numbers.
--   **Cross-Platform Support:** Compatible with both Windows and macOS systems.
+-   **High-level query and mutate tools.** `archicad_query` and `archicad_mutate` cover the most common element work in one call each, so the agent does not have to find, read and call individual commands.
+-   **Element sets instead of GUID lists (`result_registry`).** Queries return an opaque `setId` and a count. The element GUIDs stay in server memory, so large selections do not fill the model's context. Sets are bounded (50 sets, 500,000 elements in total, evicted least recently used) and expire after an hour unused.
+-   **Field masking (`field_masking`).** Element detail reads return only the fields you ask for (e.g. `["id", "storyIndex"]`), dropping polygon arrays and other bulky data.
+-   **Pagination.** Large listings are returned 100 items at a time with a `next_page_token`; `archicad_query` follows the pages itself.
+-   **Long-running jobs.** Slow commands return a job handle instead of timing out (see [Long-Running Commands](#long-running-commands)).
+-   **Safer file output.** Paths that Archicad writes to (exports, archives, Save As, screenshots, publishing) are confined to one output directory.
+-   **Locked-down HTTP transports.** HTTP binds to loopback by default; binding any other address needs `--allow-remote` and a bearer token.
+
+---
+
+## Tools
+
+| Tool | Purpose |
+| :--- | :--- |
+| `discovery_list_active_archicads` | Lists running Archicad instances with their `port`, and instances that are unresponsive or missing the Tapir add-on. Warns when the installed Tapir version differs from the supported one. |
+| `archicad_query` | Finds elements and reads their metadata. `target` is an element type (`Wall`, `Slab`, `Door`, ...) or `all`, `selected`, `classified`, `filter`. `output` is `set` (default: `setId` and count), `ids` (up to 1,000 element identifiers) or a list of field names. |
+| `archicad_mutate` | Changes the elements of a `setId` (or an explicit element list), as one Undo step per call. Actions: `set_property`, `move`, `rotate`, `set_details`, `highlight`, `delete`. Elements that cannot be changed are reported in `failedElements`. |
+| `archicad_list_commands` | Lists all 351 command names with short descriptions. |
+| `archicad_get_command_schema` | Returns the JSON schema of one command's arguments. |
+| `archicad_call_tool` | Runs any command by name, after validating its arguments against the schema. |
+| `archicad_get_job` | Gets a long-running job's result by handle, or lists recent jobs to recover a lost response. |
+
+`archicad_list_commands`, `archicad_get_command_schema` and `archicad_call_tool` are the original low-level interface. They are marked deprecated in favour of `archicad_query`/`archicad_mutate`, but remain the way to reach any command those two do not cover. Every tool carries MCP annotations (read-only, destructive, idempotent) so clients can ask for confirmation before changes.
 
 ---
 
 ## Installation & Setup
 
-Follow these steps to get the server running and connected to an MCP client like Claude for Desktop.
-
 ### 1. Prerequisites
 
--   **Python 3.12+** and **`uv`**: Ensure you have Python 3.12+ and the `uv` package manager installed.
--   **Archicad & Tapir Add-On**: You must have Archicad running (which includes the official JSON API). To access the full set of community-developed tools, the [Tapir Archicad Add-On](https://github.com/ENZYME-APD/tapir-archicad-automation) must also be installed.
--   **MCP Client**: An application that can host MCP servers, such as [Claude for Desktop](https://www.claude.ai/download), Claude Code, or [Gemini CLI](https://github.com/google-gemini/gemini-cli).
+-   **Archicad & Tapir Add-On.** Archicad must be running; it provides the official JSON API. Install the [Tapir Archicad Add-On](https://github.com/ENZYME-APD/tapir-archicad-automation) for the full command set. Tested against Archicad 30 with Tapir 1.7.3.
+-   **`uv`.** The [uv](https://docs.astral.sh/uv/) package manager must be on the PATH your client sees. It installs a suitable Python (3.12–3.14) and the dependencies itself.
+-   **An MCP client**, such as [Claude Desktop](https://claude.ai/download), Claude Code, or [Gemini CLI](https://github.com/google-gemini/gemini-cli).
 
-### 2. Configure Your AI Client
+### 2. One-click install (MCP Bundle, recommended)
 
-Open your client's `config.json` file and add the configuration. This configuration works across operating systems:
+If your client supports [MCP Bundles](https://github.com/modelcontextprotocol/mcpb), download a `.mcpb` file and open it with the client. Claude Desktop, Claude Code and MCP for Windows install them directly.
 
--   **macOS:** `~/Library/Application Support/Claude/claude_desktop_config.json`
--   **Windows:** `%APDATA%\Claude\claude_desktop_config.json`
+-   **Stable:** [caracara-archicad.mcpb](https://github.com/parikshit99/Caracara-Archicad-MCP/releases/latest/download/caracara-archicad.mcpb) always downloads the latest release. Stable releases are published automatically on the first Friday of each month when `master` has changed, versioned by date (e.g. `2026.11.0`).
+-   **Weekly pre-release:** [caracara-archicad-weekly.mcpb](https://github.com/parikshit99/Caracara-Archicad-MCP/releases/download/weekly/caracara-archicad-weekly.mcpb) is rebuilt from `master` every Friday when it has changed, for trying unreleased changes ([release page](https://github.com/parikshit99/Caracara-Archicad-MCP/releases/tag/weekly)).
 
-**Standard deployment (via `uvx`):**
-```json
-{
-  "mcpServers": {
-    "ArchicadCaracara": {
-      "command": "uvx",
-      "args": [
-        "--from",
-        "caracara-archicad-mcp",
-        "caracara-server"
-      ]
-    }
-  }
-}
-```
-
-**Local development deployment (`pip install -e .`):**
-```json
-{
-  "mcpServers": {
-    "ArchicadCaracara": {
-      "command": "caracara-server",
-      "args": []
-    }
-  }
-}
-```
-
-A complete boilerplate configuration snippet is also provided in [`claude_desktop_config.example.json`](claude_desktop_config.example.json).
-
-### 3. One-click install (optional MCP Bundle)
-
-If your client supports [MCP Bundles](https://github.com/modelcontextprotocol/mcpb) you can skip manual configuration. Claude Desktop, Claude Code and MCP for Windows install `.mcpb` files directly.
-
-Stable releases are published automatically on the first Friday of each month when `master` has changed, versioned by date (e.g. `2026.11.0`); [caracara-archicad.mcpb](https://github.com/parikshit99/Caracara-Archicad-MCP/releases/latest/download/caracara-archicad.mcpb) always downloads the latest one. To try unreleased changes, the [weekly pre-release](https://github.com/parikshit99/Caracara-Archicad-MCP/releases/tag/weekly) is rebuilt from `master` every Friday when it has changed; [caracara-archicad-weekly.mcpb](https://github.com/parikshit99/Caracara-Archicad-MCP/releases/download/weekly/caracara-archicad-weekly.mcpb) always points to the latest one.
-
-`uv` still has to be on the PATH your client sees, but it provisions Python and the locked dependencies itself. The bundle can modify the open project, export files, and send or receive Teamwork, so treat installing it like handing your client your Archicad seat.
+The bundle can modify the open project, export files, and send or receive Teamwork changes, so treat installing it like handing your client your Archicad seat.
 
 <details>
 <summary>If the bundle will not start</summary>
@@ -100,31 +66,74 @@ Stable releases are published automatically on the first Friday of each month wh
 
 </details>
 
+### 3. Manual configuration
+
+Add the server to your client's configuration. For Claude Desktop the file is:
+
+-   **macOS:** `~/Library/Application Support/Claude/claude_desktop_config.json`
+-   **Windows:** `%APPDATA%\Claude\claude_desktop_config.json`
+
+The package is not published on PyPI, so install it straight from GitHub with `uvx`:
+
+```json
+{
+  "mcpServers": {
+    "ArchicadCaracara": {
+      "command": "uvx",
+      "args": [
+        "--from",
+        "git+https://github.com/parikshit99/Caracara-Archicad-MCP",
+        "caracara-server"
+      ]
+    }
+  }
+}
+```
+
+Append `@v0.7.0` (or another tag) to the URL to pin a release.
+
+**From a local clone** (for development; see [Development](#development)):
+
+```json
+{
+  "mcpServers": {
+    "ArchicadCaracaraLocal": {
+      "command": "uv",
+      "args": ["run", "--directory", "/path/to/Caracara-Archicad-MCP", "caracara-server"]
+    }
+  }
+}
+```
+
+[`claude_desktop_config.example.json`](claude_desktop_config.example.json) has a further example. The commands `archicad-server`, `tapir-archicad-mcp` and `caracara-archicad` are aliases of `caracara-server`, and the `tapir_archicad_mcp` module is kept for configurations written for upstream.
+
 ---
 
 ## Configuration Options
 
-You can customize the server via CLI flags or environment variables (both `CARACARA_*` and legacy `TAPIR_*` are recognized):
+The server is configured with CLI flags or environment variables. Each variable is read as `CARACARA_MCP_<NAME>` first, then the legacy `TAPIR_MCP_<NAME>`. CLI flags override environment variables.
 
 | CLI Flag | Environment Variable | Default | Description |
 | :--- | :--- | :--- | :--- |
-| `--transport` | - | `stdio` | Transport protocol to use (`stdio`, `sse`, or `streamable-http`) |
-| `--host` | `CARACARA_MCP_HOST` / `TAPIR_MCP_HOST` | `127.0.0.1` | Bind address for HTTP-based transports; must be loopback unless `--allow-remote` is set |
+| `--transport` | - | `stdio` | Transport protocol: `stdio`, `sse`, or `streamable-http` |
+| `--host` | `CARACARA_MCP_HOST` | `127.0.0.1` | Bind address for HTTP transports; must be loopback unless `--allow-remote` is set |
+| `--port` | `CARACARA_MCP_PORT` | `8000` | Bind port for HTTP transports |
 | `--allow-remote` | `CARACARA_MCP_ALLOW_REMOTE` | off | Permit a non-loopback `--host` (e.g. `0.0.0.0`); requires `--token` |
-| `--output-root` | `CARACARA_MCP_OUTPUT_ROOT` | `<temp>/caracara-archicad-mcp` | Directory that files written by Archicad commands (exports, archives, Save As, screenshots) are confined to; relative paths are placed inside it |
-| `--port` | `CARACARA_MCP_PORT` / `TAPIR_MCP_PORT` | `8000` | Bind port for HTTP-based transports |
-| `--token` | `CARACARA_MCP_TOKEN` / `TAPIR_MCP_TOKEN` | `None` | Optional Bearer token to secure HTTP endpoints |
+| `--token` | `CARACARA_MCP_TOKEN` | none | Bearer token required on every HTTP request; ignored for `stdio` |
+| `--streamable-http-path` | `CARACARA_MCP_STREAMABLE_HTTP_PATH` | `/mcp` | HTTP path of the `streamable-http` endpoint |
+| `--mount-path` | `CARACARA_MCP_MOUNT_PATH` | none | Path prefix for the `sse` endpoints (`<prefix>/sse`, `<prefix>/messages/`) |
+| `--output-root` | `CARACARA_MCP_OUTPUT_ROOT` | `<temp>/caracara-archicad-mcp` | Directory that files written by Archicad commands are confined to; relative paths are placed inside it and missing subfolders are created |
 | `--async-threshold-seconds` | `CARACARA_MCP_ASYNC_THRESHOLD_SECONDS` | `45` | Seconds to wait before returning a running job handle |
 | `--job-ttl-seconds` | `CARACARA_MCP_JOB_TTL_SECONDS` | `86400` | Seconds to keep finished jobs; `0` disables time-based expiry |
 | `--max-completed-jobs` | `CARACARA_MCP_MAX_COMPLETED_JOBS` | `128` | Maximum number of finished jobs to keep |
 
-CLI flags override environment variables.
+Paths Archicad only reads (opening a project, importing BCF) are not confined, so they can reach your existing files.
 
 ---
 
 ## Long-Running Commands
 
-Commands normally return their result directly. If a command takes longer than 45 seconds, `archicad_call_tool` returns a job handle while execution continues:
+Commands normally return their result directly. If a command takes longer than 45 seconds, it returns a job handle while execution continues:
 
 ```json
 {"status": "running", "jobHandle": "job:83af21..."}
@@ -132,7 +141,7 @@ Commands normally return their result directly. If a command takes longer than 4
 
 Call `archicad_get_job(job_handle="job:83af21...")` to check progress and retrieve the result. Repeat while the status is `running`; the final status is `completed` or `failed`. If your client times out sooner, lower `--async-threshold-seconds`.
 
-If a response is lost, call `archicad_get_job()` to list recent jobs before repeating a command that changes the project. Cancelling a request does not stop a command already started, and retrying it may duplicate changes.
+If a response is lost, call `archicad_get_job()` to list recent jobs before repeating a command that changes the project. Cancelling a request does not stop a command already started, and retrying it may duplicate changes. Polling never re-runs a command.
 
 Jobs remain available across HTTP client reconnects while the server is running, but are lost on server restart. Retention defaults to 24 hours and a maximum of 128 finished jobs.
 
@@ -141,33 +150,58 @@ Jobs remain available across HTTP client reconnects while the server is running,
 ## Usage
 
 1. **Restart your MCP client** to apply configuration changes.
-2. Ensure at least one instance of Archicad is running.
-3. Start by asking the AI to find running Archicad instances:
+2. Make sure at least one Archicad instance is running.
+3. Ask the AI to find it:
 
    > *"Can you check what Archicad projects I have running?"*
 
-   The AI will call `discovery_list_active_archicads` and report the active instances and their `port` numbers.
+   The AI calls `discovery_list_active_archicads` and reports the active instances and their `port` numbers.
 
-4. State your main goal:
+4. State your goal:
 
-   > *"Using port 19723, get all the Wall elements from the project."*
+   > *"Using port 19723, find all the walls on the ground floor and highlight them in red."*
 
-5. The AI will execute a progressive discovery and calling loop:
-   - **Step 1:** Queries `archicad_list_commands` to look up the correct command name for the requested action (`elements_get_elements_by_type`).
-   - **Step 2:** Calls `archicad_get_command_schema` with the target command name to retrieve the exact parameter structure.
-   - **Step 3:** Calls `archicad_call_tool` with the command name, targeted `port`, and parameter payload.
+5. The AI works through the tools:
+   - **Common element work:** `archicad_query(target="Wall", output=["id", "storyIndex"])` returns a `setId` and the requested fields, then `archicad_mutate(target_set=<setId>, action="highlight", payload={...})` changes those elements in one Undo step.
+   - **Anything else:** `archicad_list_commands` to find a command, `archicad_get_command_schema` to read its parameters, then `archicad_call_tool` with the command name, `port` and arguments.
+
+`archicad_query` and `archicad_mutate` default to port 19723, Archicad's first API port, when no `port` is given.
 
 ---
 
 ## How It Works
 
-The server operates through a layered architecture:
+-   **AI agent (e.g. Claude):** Interprets prompts and chooses tools.
+-   **MCP client (e.g. Claude Desktop):** Runs the server process and relays messages.
+-   **MCP server (Caracara):** Exposes the tools above. Every command's arguments are validated against Pydantic models before anything is sent to Archicad, and invalid calls get a short summary of what is wrong.
+-   **Generated command layer:** One wrapper per Archicad command, generated by `scripts/generate_tools.py` from the pinned `multiconn-archicad` release. Custom behaviour (element sets, field masking, path confinement) lives in `tools/overrides.py`, so regenerating never loses it.
+-   **`multiconn_archicad` library:** Finds running Archicad instances and sends commands to them.
+-   **Archicad & Tapir add-on:** Execute the commands and return structured data.
 
--   **AI Agent (e.g., Claude):** Interprets user prompts and orchestrates tool discovery.
--   **MCP Client (e.g., Claude for Desktop):** Manages the server process and handles communication.
--   **MCP Server (Caracara):** Standardizes tool descriptions, parameters, and results, presenting a clean `list`/`schema`/`call` interface.
--   **`multiconn_archicad` Library:** Resolves active socket connections and handles low-level command dispatch to Archicad instances.
--   **Archicad & Tapir Add-On:** Built-in APIs and Tapir Add-on execute commands and return structured data.
+There are no machine-learning dependencies: tool discovery is a plain list and schema lookup, not vector search.
+
+---
+
+## Development
+
+```bash
+git clone https://github.com/parikshit99/Caracara-Archicad-MCP
+cd Caracara-Archicad-MCP
+uv sync                                    # Python and locked dependencies
+uv run pytest tests                        # unit and integration tests (no Archicad needed)
+uv run ruff check src tests scripts        # lint
+uv run ruff format src tests scripts       # format
+uv run python scripts/generate_tools.py    # regenerate command wrappers after changing the multiconn-archicad pin
+```
+
+Do not edit `src/caracara_archicad_mcp/tools/generated/` by hand: CI regenerates it and fails on any difference. Put custom behaviour in `tools/overrides.py` instead.
+
+### Continuous integration and releases
+
+-   **Every push and pull request to `master`** runs lint and format checks, a lock-file check, a check that generated tools match the generator, a `pip-audit` vulnerability audit of the locked dependencies, tests with at least 85% coverage on Windows, macOS and Linux with Python 3.12–3.14, and a package and MCPB bundle build.
+-   **Weekly build** (Fridays 03:30 UTC): when `master` has changed, runs the same gates and replaces the rolling [`weekly`](https://github.com/parikshit99/Caracara-Archicad-MCP/releases/tag/weekly) pre-release.
+-   **Monthly stable release** (first Friday, 04:30 UTC): when `master` has changed, runs the gates, bumps the date-based version in `pyproject.toml`, `manifest.json` and `uv.lock`, tags it, and publishes a GitHub release with the wheel, sdist and `.mcpb` bundle.
+-   **Dependabot** opens weekly grouped updates for Python dependencies and GitHub Actions.
 
 ---
 
@@ -177,10 +211,10 @@ The server operates through a layered architecture:
 
 We are deeply grateful to Máté and the [Enzyme APD](https://github.com/ENZYME-APD/tapir-archicad-automation) team for developing the Archicad automation ecosystem and making it open-source.
 
-**Why this fork?**  
+**Why this fork?**
 This fork is maintained purely as a personal sandbox and experimental testbed for custom workflows. It is not intended to compete with or replace the original project. For production use and the official, stable release, please use the upstream [SzamosiMate/tapir-archicad-MCP](https://github.com/SzamosiMate/tapir-archicad-MCP) repository.
 
-*Note: For issues or questions related specifically to this fork, please use the [Caracara Issue Tracker](https://github.com/parikshit99/caracara-archicad/issues) to avoid burdening upstream maintainers.*
+*For issues or questions about this fork, please use the [Caracara issue tracker](https://github.com/parikshit99/Caracara-Archicad-MCP/issues) rather than the upstream one.*
 
 Icon artwork is the official Tapir mark from [ENZYME-APD/tapir-archicad-automation](https://github.com/ENZYME-APD/tapir-archicad-automation) (`branding/logo/png/tapir_logo_black_512.png`), MIT, Copyright 2024 Enzyme APD.
 
@@ -188,7 +222,7 @@ Icon artwork is the official Tapir mark from [ENZYME-APD/tapir-archicad-automati
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit an issue or open a pull request on the Caracara repository.
+Issues and pull requests are welcome on the [Caracara repository](https://github.com/parikshit99/Caracara-Archicad-MCP). Please run the checks in [Development](#development) before opening a pull request.
 
 ---
 

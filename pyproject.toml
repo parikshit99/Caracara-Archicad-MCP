@@ -26,6 +26,7 @@ classifiers = [
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Topic :: Scientific/Engineering",
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
@@ -37,8 +38,8 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/parikshit99/caracara-archicad"
-"Bug Tracker" = "https://github.com/parikshit99/caracara-archicad/issues"
+Homepage = "https://github.com/parikshit99/Caracara-Archicad-MCP"
+"Bug Tracker" = "https://github.com/parikshit99/Caracara-Archicad-MCP/issues"
 "Upstream Repository" = "https://github.com/SzamosiMate/tapir-archicad-MCP"
 
 [project.scripts]

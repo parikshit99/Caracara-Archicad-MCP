@@ -7,15 +7,15 @@
   "long_description": "Local MCP server for a running Archicad session. Discovers active instances, lists available Archicad API commands, retrieves each command's schema, and executes them.\n\nThis can create, modify, and delete elements; open, close, and save projects; export files (IFC, BCF, favorites); and send or receive Teamwork. Project names, paths, and model data are sent to the MCP client. Requires Archicad open on this machine, and the Tapir Archicad Add-On for the full command set.",
   "author": {
     "name": "parikshit99 (original by SzamosiMate)",
-    "url": "https://github.com/parikshit99/caracara-archicad"
+    "url": "https://github.com/parikshit99/Caracara-Archicad-MCP"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/parikshit99/caracara-archicad.git"
+    "url": "https://github.com/parikshit99/Caracara-Archicad-MCP.git"
   },
-  "homepage": "https://github.com/parikshit99/caracara-archicad",
-  "documentation": "https://github.com/parikshit99/caracara-archicad#readme",
-  "support": "https://github.com/parikshit99/caracara-archicad/issues",
+  "homepage": "https://github.com/parikshit99/Caracara-Archicad-MCP",
+  "documentation": "https://github.com/parikshit99/Caracara-Archicad-MCP#readme",
+  "support": "https://github.com/parikshit99/Caracara-Archicad-MCP/issues",
   "icon": "icon.png",
   "license": "MIT",
   "keywords": [
