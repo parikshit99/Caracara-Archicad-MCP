@@ -33,6 +33,7 @@ The server is a bridge that lets AI agents and applications (Claude Desktop, Cla
 | `discovery_list_active_archicads` | Lists running Archicad instances with their `port`, and instances that are unresponsive or missing the Tapir add-on. Warns when the installed Tapir version differs from the supported one. |
 | `archicad_query` | Finds elements and reads their metadata. `target` is an element type (`Wall`, `Slab`, `Door`, ...) or `all`, `selected`, `classified`, `filter`. `output` is `set` (default: `setId` and count), `ids` (up to 1,000 element identifiers) or a list of field names. |
 | `archicad_mutate` | Changes the elements of a `setId` (or an explicit element list), as one Undo step per call. Actions: `set_property`, `move`, `rotate`, `set_details`, `highlight`, `delete`. Elements that cannot be changed are reported in `failedElements`. |
+| `archicad_project_overview` | Returns, in one read-only call, what an agent needs before working: Archicad and Tapir versions, project name and type, stories (index, name, level, height), calculation units, north direction, layers (with which are locked or hidden) and classification systems. The file path, geographic location and Project Info fields (client, address, ...) are only included with `include_private=true`. |
 | `archicad_list_commands` | Lists all 351 command names with short descriptions. |
 | `archicad_get_command_schema` | Returns the JSON schema of one command's arguments. |
 | `archicad_call_tool` | Runs any command by name, after validating its arguments against the schema. |
