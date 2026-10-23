@@ -76,3 +76,22 @@ async def test_window_captures_are_blocked_in_read_only_mode(fake_archicad):
     with pytest.raises(ToolError, match="read-only mode"):
         await archicad_capture_view()
     assert fake_archicad.calls == []
+
+
+@pytest.mark.asyncio
+async def test_spatial_queries_work_in_read_only_mode(fake_archicad):
+    from caracara_archicad_mcp.tools.custom.spatial_query import archicad_spatial_query
+
+    fake_archicad.on_tapir_command(
+        "Get3DBoundingBoxes",
+        lambda params: {
+            "boundingBoxes3D": [
+                {"boundingBox3D": {"xMin": 0, "yMin": 0, "zMin": 0, "xMax": 1, "yMax": 1, "zMax": 1}}
+                for _ in params["elements"]
+            ]
+        },
+    )
+
+    result = await archicad_spatial_query("near", [{"elementId": {"guid": GUID}}], [{"elementId": {"guid": GUID}}])
+
+    assert result["pairCount"] == 0  # an element is not near itself
