@@ -118,6 +118,11 @@ def _build_missing_tapir_instance() -> UnavailableInstance:
     )
 
 
+def ready_instance(port: int) -> ReadyInstance:
+    """Describe the active Archicad instance on a port: project, versions and path."""
+    return _build_ready_instance(port, _get_header(port))
+
+
 def _build_ready_instance(port: int, header: ConnHeader) -> ReadyInstance:
     """Builds a ready-to-use Archicad instance metadata model."""
     project_id = header.archicad_id
