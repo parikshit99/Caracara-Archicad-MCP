@@ -5,221 +5,363 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Caracara Archicad MCP</title>
 <meta name="description" content="An MCP server that lets Claude and other AI agents work with running Archicad projects through the Tapir add-on and Archicad's JSON API.">
+<meta name="theme-color" content="#0c0e13" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#faf8f4" media="(prefers-color-scheme: light)">
 <meta property="og:title" content="Caracara Archicad MCP">
 <meta property="og:description" content="Let AI agents query and edit running Archicad projects: 351 Tapir and official JSON API commands behind a small, safe MCP toolset.">
 <meta property="og:type" content="website">
-<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
-<link rel="apple-touch-icon" href="icon.png">
-<meta property="og:image" content="https://parikshit99.github.io/Caracara-Archicad-MCP/icon.png">
+<meta property="og:image" content="https://parikshit99.github.io/Caracara-Archicad-MCP/caracara-og-512.png">
+<link rel="icon" type="image/png" sizes="32x32" href="caracara-favicon-32.png">
+<link rel="apple-touch-icon" href="caracara-touch-180.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@500;600;700&display=swap">
+<script>document.documentElement.classList.add("js");</script>
 <style>
   :root {
-    --bg: #fbfaf7;
+    --bg: #faf8f4;
+    --bg-2: #f2efe8;
     --surface: #ffffff;
-    --surface-2: #f3f1ec;
-    --text: #1c1b19;
-    --muted: #5f5c55;
-    --border: #e3dfd6;
-    --accent: #b4532a;
-    --accent-strong: #8f3f1d;
+    --surface-2: #f6f3ee;
+    --text: #17161a;
+    --muted: #5d5a63;
+    --faint: #8a8791;
+    --border: rgb(23 22 26 / 0.1);
+    --border-strong: rgb(23 22 26 / 0.18);
+    --accent: #d9501f;
+    --accent-2: #f28f34;
     --accent-ink: #ffffff;
-    --code-bg: #f3f1ec;
-    --shadow: 0 1px 2px rgb(0 0 0 / 0.04), 0 8px 24px rgb(0 0 0 / 0.06);
+    --navy: #1c293c;
+    --ok: #1f8a5b;
+    --glow-a: rgb(242 106 61 / 0.30);
+    --glow-b: rgb(52 92 150 / 0.22);
+    --shadow: 0 1px 2px rgb(0 0 0 / 0.04), 0 12px 32px rgb(20 20 30 / 0.08);
+    --display: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+    --body: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   }
   @media (prefers-color-scheme: dark) {
     :root {
-      --bg: #151412;
-      --surface: #1d1c19;
-      --surface-2: #26241f;
-      --text: #ece9e2;
-      --muted: #a8a397;
-      --border: #34312b;
-      --accent: #e0805a;
-      --accent-strong: #f09a76;
-      --accent-ink: #1a0f0a;
-      --code-bg: #26241f;
-      --shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 8px 24px rgb(0 0 0 / 0.3);
+      --bg: #0c0e13;
+      --bg-2: #10131a;
+      --surface: #141821;
+      --surface-2: #1a1f2a;
+      --text: #eceae6;
+      --muted: #a3a1aa;
+      --faint: #74727c;
+      --border: rgb(255 255 255 / 0.08);
+      --border-strong: rgb(255 255 255 / 0.16);
+      --accent: #f26a3d;
+      --accent-2: #f5a04a;
+      --accent-ink: #1a0e08;
+      --ok: #4cc38a;
+      --glow-a: rgb(242 106 61 / 0.22);
+      --glow-b: rgb(70 120 200 / 0.20);
+      --shadow: 0 1px 2px rgb(0 0 0 / 0.4), 0 16px 40px rgb(0 0 0 / 0.45);
     }
   }
 
   * { box-sizing: border-box; }
-  html { -webkit-text-size-adjust: 100%; }
-  body {
-    margin: 0;
-    background: var(--bg);
-    color: var(--text);
-    font: 16px/1.6 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  }
-  a { color: var(--accent); text-underline-offset: 2px; }
-  a:hover { color: var(--accent-strong); }
-  code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; font-size: 0.9em; }
-  code { background: var(--code-bg); padding: 0.1em 0.35em; border-radius: 4px; }
-  pre {
-    margin: 0;
-    background: var(--code-bg);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 16px;
-    overflow-x: auto;
-    line-height: 1.5;
-  }
-  pre code { background: none; padding: 0; }
+  html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; scroll-padding-top: 72px; overflow-x: clip; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.6 var(--body); overflow-x: hidden; }
+  a { color: var(--accent); text-underline-offset: 3px; }
+  code, pre { font-family: var(--mono); font-size: 0.86em; }
+  :not(pre) > code { background: var(--surface-2); border: 1px solid var(--border); padding: 0.05em 0.35em; border-radius: 5px; }
+  ::selection { background: var(--accent); color: var(--accent-ink); }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 0 16px; }
+  @media (min-width: 720px) { .wrap { padding: 0 24px; } }
 
-  .wrap { max-width: 1040px; margin: 0 auto; padding: 0 16px; }
-
+  /* Header */
   header.top {
-    border-bottom: 1px solid var(--border);
+    position: sticky; top: 0; z-index: 50;
+    background: color-mix(in srgb, var(--bg) 72%, transparent);
+    backdrop-filter: saturate(1.4) blur(14px); -webkit-backdrop-filter: saturate(1.4) blur(14px);
+    border-bottom: 1px solid transparent; transition: border-color .3s;
   }
-  header.top .wrap {
-    display: flex; align-items: center; justify-content: space-between; gap: 16px;
-    height: 60px;
-  }
-  .brand { display: flex; align-items: center; gap: 10px; font-weight: 650; color: var(--text); text-decoration: none; }
-  .brand img { width: 30px; height: 30px; }
-  nav.links { display: flex; gap: 20px; font-size: 0.95rem; }
-  nav.links a { color: var(--muted); text-decoration: none; }
-  nav.links a:hover { color: var(--text); }
+  header.top.scrolled { border-bottom-color: var(--border); }
+  header.top .wrap { display: flex; align-items: center; justify-content: space-between; height: 64px; }
+  .brand { display: flex; align-items: center; gap: 10px; font: 600 1.08rem/1 var(--display); color: var(--text); text-decoration: none; letter-spacing: -0.01em; }
+  .brand img { width: 32px; height: 32px; transition: transform .5s cubic-bezier(.2,.8,.2,1); }
+  .brand:hover img { transform: rotate(-12deg) scale(1.06); }
+  nav.links { display: flex; gap: 6px; align-items: center; }
+  nav.links a { color: var(--muted); text-decoration: none; font-size: 0.93rem; padding: 6px 12px; border-radius: 8px; transition: color .2s, background .2s; }
+  nav.links a:hover { color: var(--text); background: var(--surface-2); }
+  nav.links a.gh { color: var(--text); border: 1px solid var(--border-strong); }
   @media (max-width: 640px) { nav.links .opt { display: none; } }
 
-  .hero { padding: 72px 0 56px; }
-  .hero .eyebrow { color: var(--accent); font-weight: 600; font-size: 0.9rem; letter-spacing: 0.02em; margin: 0 0 12px; }
-  .hero h1 { font-size: clamp(2rem, 5vw, 3.1rem); line-height: 1.12; letter-spacing: -0.02em; margin: 0 0 18px; max-width: 18ch; }
-  .hero p.lede { font-size: 1.15rem; color: var(--muted); max-width: 60ch; margin: 0 0 28px; }
-  .hero-grid { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 48px; align-items: center; }
-  .hero-copy { grid-column: 1; grid-row: 1; min-width: 0; }
-  .hero-art { grid-column: 2; grid-row: 1; width: clamp(240px, 30vw, 340px); height: auto; filter: drop-shadow(0 12px 28px rgb(0 0 0 / 0.18)); }
-  @media (prefers-color-scheme: dark) { .hero-art { border-radius: 50%; box-shadow: 0 0 0 1px rgb(255 255 255 / 0.12); } }
-  @media (max-width: 760px) {
-    .hero { padding-top: 40px; }
-    .hero-grid { grid-template-columns: 1fr; gap: 20px; }
-    .hero-art, .hero-copy { grid-column: 1; grid-row: auto; }
-    .hero-art { width: 132px; }
+  /* Hero */
+  .hero { position: relative; padding: 72px 0 88px; isolation: isolate; overflow-x: clip; }
+  .aurora { position: absolute; inset: -20% -10% 0; z-index: -1; pointer-events: none; overflow: hidden; }
+  .aurora::before, .aurora::after {
+    content: ""; position: absolute; width: 60vmax; height: 60vmax; border-radius: 50%; filter: blur(70px);
+    animation: drift 22s ease-in-out infinite alternate;
   }
+  .aurora::before { background: radial-gradient(circle, var(--glow-a), transparent 65%); top: -18vmax; left: -10vmax; }
+  .aurora::after { background: radial-gradient(circle, var(--glow-b), transparent 65%); top: -6vmax; right: -22vmax; animation-delay: -11s; }
+  @keyframes drift { from { transform: translate3d(0,0,0) scale(1); } to { transform: translate3d(8vmax,6vmax,0) scale(1.15); } }
+  .grid-bg {
+    position: absolute; inset: 0; z-index: -1; pointer-events: none;
+    background-image: linear-gradient(var(--border) 1px, transparent 1px), linear-gradient(90deg, var(--border) 1px, transparent 1px);
+    background-size: 48px 48px;
+    mask-image: radial-gradient(ellipse 70% 60% at 50% 30%, #000 30%, transparent 75%);
+    -webkit-mask-image: radial-gradient(ellipse 70% 60% at 50% 30%, #000 30%, transparent 75%);
+    opacity: .55;
+  }
+  .hero-grid { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 56px; align-items: center; }
+  @media (max-width: 900px) { .hero { padding: 40px 0 64px; } .hero-grid { grid-template-columns: 1fr; gap: 40px; } }
 
-  .actions { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+  .pill {
+    display: inline-flex; align-items: center; gap: 8px; padding: 5px 12px 5px 8px; border-radius: 999px;
+    border: 1px solid var(--border-strong); background: color-mix(in srgb, var(--surface) 70%, transparent);
+    font-size: 0.82rem; color: var(--muted); margin-bottom: 22px; text-decoration: none;
+  }
+  .pill b { color: var(--text); font-weight: 600; }
+  .pill .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 0 0 color-mix(in srgb, var(--ok) 60%, transparent); animation: ping 2.4s infinite; }
+  @keyframes ping { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--ok) 55%, transparent); } 80%,100% { box-shadow: 0 0 0 8px transparent; } }
+  .hero h1 { font: 700 clamp(2.4rem, 6.2vw, 4.2rem)/1.02 var(--display); letter-spacing: -0.035em; margin: 0 0 22px; }
+  .grad {
+    background: linear-gradient(100deg, var(--accent) 0%, var(--accent-2) 35%, var(--accent) 70%, var(--accent-2) 100%);
+    background-size: 220% 100%; -webkit-background-clip: text; background-clip: text; color: transparent;
+    animation: sheen 7s linear infinite;
+  }
+  @keyframes sheen { to { background-position: -220% 0; } }
+  .lede { font-size: 1.14rem; color: var(--muted); max-width: 54ch; margin: 0 0 32px; }
+  .actions { display: flex; flex-wrap: wrap; gap: 12px; }
   .btn {
-    display: inline-flex; align-items: center; gap: 8px;
-    padding: 11px 18px; border-radius: 10px; font-weight: 600; text-decoration: none;
-    border: 1px solid var(--border); background: var(--surface); color: var(--text);
+    position: relative; display: inline-flex; align-items: center; gap: 9px; padding: 12px 20px; border-radius: 12px;
+    font-weight: 600; font-size: 0.97rem; text-decoration: none; border: 1px solid var(--border-strong);
+    background: var(--surface); color: var(--text); transition: transform .2s, box-shadow .25s, background .2s;
   }
-  .btn:hover { color: var(--text); border-color: var(--muted); }
-  .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
-  .btn.primary:hover { background: var(--accent-strong); border-color: var(--accent-strong); color: var(--accent-ink); }
+  .btn:hover { transform: translateY(-2px); box-shadow: var(--shadow); }
   .btn svg { width: 18px; height: 18px; flex: none; }
-  .release-note { color: var(--muted); font-size: 0.9rem; margin-top: 14px; min-height: 1.6em; }
-
-  section { padding: 56px 0; border-top: 1px solid var(--border); }
-  section h2 { font-size: 1.6rem; letter-spacing: -0.01em; margin: 0 0 8px; }
-  section > .wrap > p.sub { color: var(--muted); margin: 0 0 28px; max-width: 65ch; }
-
-  .grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
-  .card {
-    background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
-    padding: 20px; box-shadow: var(--shadow);
+  .btn.primary { background: var(--accent); border-color: transparent; color: var(--accent-ink); overflow: hidden; box-shadow: 0 8px 24px -8px color-mix(in srgb, var(--accent) 70%, transparent); }
+  .btn.primary::after {
+    content: ""; position: absolute; inset: 0; transform: translateX(-120%);
+    background: linear-gradient(100deg, transparent 20%, rgb(255 255 255 / 0.35) 50%, transparent 80%);
+    transition: transform .7s;
   }
-  .card h3 { margin: 0 0 6px; font-size: 1.05rem; }
+  .btn.primary:hover::after { transform: translateX(120%); }
+  .btn.primary:hover svg { animation: nudge .6s ease; }
+  @keyframes nudge { 50% { transform: translateY(3px); } }
+  .release-note { color: var(--faint); font-size: 0.86rem; margin-top: 16px; min-height: 1.4em; }
+
+  /* Demo window */
+  .demo {
+    position: relative; border-radius: 18px; background: color-mix(in srgb, var(--surface) 88%, transparent);
+    border: 1px solid var(--border-strong); box-shadow: var(--shadow), 0 40px 80px -40px color-mix(in srgb, var(--accent) 35%, transparent);
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); overflow: hidden; min-width: 0;
+  }
+  .demo::before {
+    content: ""; position: absolute; inset: -1px; border-radius: inherit; padding: 1px; pointer-events: none;
+    background: conic-gradient(from var(--angle, 0deg), transparent 0 70%, var(--accent) 80%, var(--accent-2) 85%, transparent 95%);
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor;
+    mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+    animation: spin 6s linear infinite;
+  }
+  @property --angle { syntax: "<angle>"; initial-value: 0deg; inherits: false; }
+  @keyframes spin { to { --angle: 360deg; } }
+  .demo-bar { display: flex; align-items: center; gap: 8px; padding: 12px 16px; border-bottom: 1px solid var(--border); font-size: 0.8rem; color: var(--faint); }
+  .demo-bar i { width: 11px; height: 11px; border-radius: 50%; background: var(--border-strong); display: inline-block; }
+  .demo-bar span { margin-left: 8px; }
+  .demo-body { padding: 18px; display: grid; gap: 12px; min-height: 380px; align-content: start; }
+  .msg { max-width: 92%; padding: 11px 14px; border-radius: 14px; font-size: 0.93rem; line-height: 1.5; }
+  .msg.user { justify-self: end; background: var(--accent); color: var(--accent-ink); border-bottom-right-radius: 4px; min-height: 2.9em; }
+  .msg.bot { background: var(--surface-2); border: 1px solid var(--border); border-bottom-left-radius: 4px; }
+  .caret { display: inline-block; width: 2px; height: 1.05em; background: currentColor; vertical-align: -0.15em; margin-left: 1px; animation: blink 1s steps(1) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+  .call { border: 1px solid var(--border); border-radius: 12px; background: var(--bg-2); font: 0.8rem/1.5 var(--mono); overflow: hidden; }
+  .call-head { display: flex; align-items: center; gap: 10px; padding: 9px 12px; }
+  .call-head .fn { color: var(--accent); font-weight: 500; }
+  .call-head .args { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+  .status { margin-left: auto; flex: none; width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--border-strong); border-top-color: var(--accent); animation: spin2 .8s linear infinite; }
+  .status.done { animation: none; border: none; background: var(--ok); position: relative; }
+  .status.done::after { content: ""; position: absolute; left: 5px; top: 2.5px; width: 4px; height: 8px; border: solid #fff; border-width: 0 2px 2px 0; transform: rotate(45deg); }
+  @keyframes spin2 { to { transform: rotate(360deg); } }
+  .call-out { padding: 8px 12px; border-top: 1px dashed var(--border); color: var(--muted); }
+  .call-out b { color: var(--text); font-weight: 500; }
+  .step { opacity: 0; transform: translateY(8px) scale(.98); transition: opacity .45s, transform .45s cubic-bezier(.2,.8,.2,1); }
+  .step.on { opacity: 1; transform: none; }
+  .call-out { display: none; }
+  .call.resolved .call-out { display: block; animation: fadein .4s; }
+  @keyframes fadein { from { opacity: 0; } }
+
+  /* Stats */
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); border: 1px solid var(--border); border-radius: 18px; background: var(--surface); overflow: hidden; margin-top: 72px; }
+  .stat { padding: 22px 20px; border-left: 1px solid var(--border); }
+  .stat:first-child { border-left: none; }
+  .stat .n { font: 700 2.1rem/1 var(--display); letter-spacing: -0.03em; }
+  .stat .l { color: var(--muted); font-size: 0.88rem; margin-top: 6px; }
+  @media (max-width: 720px) { .stats { grid-template-columns: 1fr 1fr; margin-top: 48px; } .stat:nth-child(3) { border-left: none; } .stat:nth-child(n+3) { border-top: 1px solid var(--border); } }
+
+  /* Sections */
+  section { padding: 96px 0; }
+  @media (max-width: 720px) { section { padding: 64px 0; } }
+  .kicker { font: 600 0.8rem/1 var(--mono); color: var(--accent); text-transform: uppercase; letter-spacing: 0.12em; margin: 0 0 14px; }
+  h2 { font: 700 clamp(1.8rem, 4vw, 2.6rem)/1.08 var(--display); letter-spacing: -0.03em; margin: 0 0 14px; }
+  .sub { color: var(--muted); margin: 0 0 40px; max-width: 60ch; font-size: 1.05rem; }
+
+  .cards { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); }
+  .card {
+    position: relative; padding: 24px; border-radius: 16px; background: var(--surface); border: 1px solid var(--border);
+    overflow: hidden; transition: transform .3s cubic-bezier(.2,.8,.2,1), border-color .3s;
+  }
+  .card::before {
+    content: ""; position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity .3s;
+    background: radial-gradient(360px circle at var(--mx, 50%) var(--my, 50%), color-mix(in srgb, var(--accent) 14%, transparent), transparent 60%);
+  }
+  .card:hover { transform: translateY(-4px); border-color: var(--border-strong); }
+  .card:hover::before { opacity: 1; }
+  .card .ico { width: 40px; height: 40px; border-radius: 10px; display: grid; place-items: center; margin-bottom: 16px; color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
+  .card .ico svg { width: 21px; height: 21px; }
+  .card h3 { font: 600 1.12rem/1.3 var(--display); margin: 0 0 8px; letter-spacing: -0.01em; }
   .card p { margin: 0; color: var(--muted); font-size: 0.95rem; }
 
-  .steps { counter-reset: step; display: grid; gap: 20px; }
-  .step { display: grid; grid-template-columns: 36px 1fr; gap: 14px; align-items: start; }
-  .step::before {
-    counter-increment: step; content: counter(step);
-    width: 36px; height: 36px; border-radius: 50%;
-    display: grid; place-items: center; font-weight: 700;
-    background: var(--surface-2); border: 1px solid var(--border);
+  .steps { display: grid; gap: 14px; counter-reset: step; }
+  .step-card { display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 18px; padding: 22px; border-radius: 16px; background: var(--surface); border: 1px solid var(--border); }
+  .step-card::before {
+    counter-increment: step; content: "0" counter(step); font: 600 0.95rem/44px var(--mono); text-align: center;
+    width: 44px; height: 44px; border-radius: 12px; color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent);
   }
-  .step h3 { margin: 4px 0 6px; font-size: 1.05rem; }
-  .step p { margin: 0 0 10px; color: var(--muted); }
-  .step > div { min-width: 0; }
-
-  .table-scroll { overflow-x: auto; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
-  table { width: 100%; border-collapse: collapse; font-size: 0.95rem; }
-  th, td { text-align: left; padding: 12px 16px; border-bottom: 1px solid var(--border); vertical-align: top; }
-  tr:last-child td { border-bottom: none; }
-  th { font-weight: 600; background: var(--surface-2); }
-  td:first-child { white-space: nowrap; }
-  @media (max-width: 640px) {
-    thead { display: none; }
-    tr, td { display: block; }
-    td { border-bottom: none; padding: 4px 16px; }
-    td:first-child { padding-top: 14px; white-space: normal; overflow-wrap: anywhere; }
-    td:last-child { padding-bottom: 14px; color: var(--muted); }
-    tr { border-bottom: 1px solid var(--border); }
-    tr:last-child { border-bottom: none; }
+  .step-card h3 { font: 600 1.1rem/1.3 var(--display); margin: 10px 0 6px; }
+  .step-card p { margin: 0 0 10px; color: var(--muted); }
+  .step-card p:last-child { margin-bottom: 0; }
+  .code { position: relative; margin-top: 12px; }
+  .code pre { margin: 0; padding: 18px; border-radius: 12px; background: var(--bg-2); border: 1px solid var(--border); overflow-x: auto; line-height: 1.55; }
+  .copy {
+    position: absolute; top: 10px; right: 10px; font: 500 0.78rem/1 var(--body); padding: 7px 10px; border-radius: 8px;
+    border: 1px solid var(--border-strong); background: var(--surface); color: var(--muted); cursor: pointer; transition: color .2s, border-color .2s;
   }
-  .tag { font-size: 0.75rem; font-weight: 600; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); margin-left: 6px; white-space: nowrap; }
+  .copy:hover { color: var(--text); border-color: var(--accent); }
+  .tok-k { color: var(--accent); } .tok-s { color: var(--ok); }
+  .callout { margin-top: 20px; padding: 16px 20px; border-radius: 14px; border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent); background: color-mix(in srgb, var(--accent) 7%, transparent); color: var(--muted); font-size: 0.95rem; }
+  .callout b { color: var(--text); }
 
-  .callout {
-    border-left: 3px solid var(--accent); background: var(--surface-2);
-    padding: 14px 18px; border-radius: 0 10px 10px 0; color: var(--muted); margin-top: 24px;
+  .tools { display: grid; gap: 10px; }
+  .tool {
+    display: grid; grid-template-columns: minmax(0, 300px) minmax(0, 1fr); gap: 20px; align-items: center;
+    padding: 16px 20px; border-radius: 14px; background: var(--surface); border: 1px solid var(--border); transition: border-color .25s, transform .25s;
   }
+  .tool:hover { border-color: var(--border-strong); transform: translateX(4px); }
+  .tool code { font-size: 0.85rem; background: none; border: none; padding: 0; color: var(--text); overflow-wrap: anywhere; }
+  .tool p { margin: 0; color: var(--muted); font-size: 0.95rem; }
+  .tag { display: inline-block; margin-left: 8px; font: 500 0.7rem/1 var(--mono); padding: 4px 7px; border-radius: 999px; color: var(--faint); border: 1px solid var(--border-strong); vertical-align: 2px; }
+  @media (max-width: 720px) { .tool { grid-template-columns: 1fr; gap: 6px; } }
+  .more { margin-top: 24px; color: var(--muted); }
 
-  footer { border-top: 1px solid var(--border); padding: 32px 0 48px; color: var(--muted); font-size: 0.9rem; }
-  footer p { margin: 0 0 8px; }
+  .cta { text-align: center; padding: 72px 24px; border-radius: 24px; position: relative; overflow: hidden; border: 1px solid var(--border); background: var(--surface); isolation: isolate; }
+  .cta::before { content: ""; position: absolute; inset: -40%; z-index: -1; background: radial-gradient(circle at 30% 40%, var(--glow-a), transparent 45%), radial-gradient(circle at 70% 60%, var(--glow-b), transparent 45%); animation: drift 18s ease-in-out infinite alternate; }
+  .cta h2 { margin-bottom: 12px; }
+  .cta p { color: var(--muted); margin: 0 auto 28px; max-width: 48ch; }
+  .cta .actions { justify-content: center; }
+
+  footer { border-top: 1px solid var(--border); padding: 36px 0 56px; color: var(--faint); font-size: 0.88rem; }
+  footer p { margin: 0 0 8px; max-width: 80ch; }
+  footer a { color: var(--muted); }
+
+  /* Scroll reveal (only when JS runs, so the page never renders blank) */
+  .js .reveal { opacity: 0; transform: translateY(22px); transition: opacity .7s cubic-bezier(.2,.8,.2,1), transform .7s cubic-bezier(.2,.8,.2,1); transition-delay: var(--d, 0s); }
+  .js .reveal.in { opacity: 1; transform: none; }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+    html { scroll-behavior: auto; }
+    .js .reveal { opacity: 1; transform: none; }
+  }
 </style>
 </head>
 <body>
 
-<header class="top">
+<header class="top" id="top">
   <div class="wrap">
-    <a class="brand" href="#"><img src="icon.png" alt="" width="30" height="30">Caracara</a>
+    <a class="brand" href="#"><img src="caracara-mark-128.webp" alt="" width="32" height="32">Caracara</a>
     <nav class="links" aria-label="Main">
       <a class="opt" href="#features">Features</a>
       <a class="opt" href="#install">Install</a>
       <a class="opt" href="#tools">Tools</a>
-      <a href="https://github.com/parikshit99/Caracara-Archicad-MCP">GitHub</a>
+      <a class="gh" href="https://github.com/parikshit99/Caracara-Archicad-MCP">GitHub</a>
     </nav>
   </div>
 </header>
 
 <main>
   <div class="hero">
-    <div class="wrap hero-grid">
-      <img class="hero-art" src="logo-768.webp" alt="Caracara logo: a crested caracara" width="768" height="768">
-      <div class="hero-copy">
-      <p class="eyebrow">MCP server for Archicad</p>
-      <h1>Let your AI assistant work in Archicad.</h1>
-      <p class="lede">Caracara connects Claude and other MCP clients to running Archicad projects. Ask in plain language to find, inspect, change or export elements, and it drives Archicad through the Tapir add-on and the official JSON API.</p>
-      <div class="actions">
-        <a class="btn primary" href="https://github.com/parikshit99/Caracara-Archicad-MCP/releases/latest/download/caracara-archicad.mcpb">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
-          Download for Claude
-        </a>
-        <a class="btn" href="https://github.com/parikshit99/Caracara-Archicad-MCP">
-          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5a11.5 11.5 0 0 0-3.64 22.41c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.37-3.88-1.37-.53-1.33-1.28-1.69-1.28-1.69-1.05-.71.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.29 1.19-3.1-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.17 1.18a11 11 0 0 1 5.78 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.81 1.19 1.84 1.19 3.1 0 4.42-2.7 5.39-5.26 5.68.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .5Z"/></svg>
-          View on GitHub
-        </a>
+    <div class="aurora" aria-hidden="true"></div>
+    <div class="grid-bg" aria-hidden="true"></div>
+    <div class="wrap">
+      <div class="hero-grid">
+        <div>
+          <a class="pill reveal" href="https://github.com/parikshit99/Caracara-Archicad-MCP/releases/latest"><span class="dot"></span><span id="pill-text">MCP server for <b>Archicad</b></span></a>
+          <h1 class="reveal" style="--d:.06s">Let your AI assistant <span class="grad">work&nbsp;in&nbsp;Archicad.</span></h1>
+          <p class="lede reveal" style="--d:.12s">Caracara connects Claude and other MCP clients to running Archicad projects. Ask in plain language to find, inspect, change or export elements, and it drives Archicad through the Tapir add-on and the official JSON API.</p>
+          <div class="actions reveal" style="--d:.18s">
+            <a class="btn primary" href="https://github.com/parikshit99/Caracara-Archicad-MCP/releases/latest/download/caracara-archicad.mcpb">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
+              Download for Claude
+            </a>
+            <a class="btn" href="#install">How it works</a>
+          </div>
+          <p class="release-note reveal" style="--d:.24s" id="release-note">One-click MCP Bundle for Claude Desktop and Claude Code.</p>
+        </div>
+
+        <div class="demo reveal" style="--d:.2s" role="img" aria-label="Example: asking Claude to find the ground-floor walls and highlight them. Caracara runs archicad_query, then archicad_mutate, and highlights 31 walls in one undo step.">
+          <div class="demo-bar"><i></i><i></i><i></i><span>Claude · Archicad (Caracara)</span></div>
+          <div class="demo-body" id="demo">
+            <div class="msg user"><span id="typed"></span><span class="caret"></span></div>
+            <div class="call step" id="c1">
+              <div class="call-head"><span class="fn">archicad_query</span><span class="args">target="Wall", output=["id", "storyIndex"]</span><span class="status"></span></div>
+              <div class="call-out">setId <b>set:wall:1</b> · <b>248</b> walls · 31 on storey 0</div>
+            </div>
+            <div class="call step" id="c2">
+              <div class="call-head"><span class="fn">archicad_mutate</span><span class="args">target_set="set:wall:1", action="highlight"</span><span class="status"></span></div>
+              <div class="call-out"><b>31</b> elements highlighted · <b>1</b> Undo step</div>
+            </div>
+            <div class="msg bot step" id="m2">Done. I found 248 walls and highlighted the 31 on the ground floor in red. One Undo in Archicad clears it.</div>
+          </div>
+        </div>
       </div>
-      <p class="release-note" id="release-note">Stable release, installs as a one-click MCP Bundle.</p>
+
+      <div class="stats reveal" style="--d:.1s">
+        <div class="stat"><div class="n" data-count="351">351</div><div class="l">Archicad commands</div></div>
+        <div class="stat"><div class="n" data-count="7">7</div><div class="l">focused MCP tools</div></div>
+        <div class="stat"><div class="n" data-count="1">1</div><div class="l">Undo step per change</div></div>
+        <div class="stat"><div class="n" data-count="0">0</div><div class="l">Python setup steps</div></div>
       </div>
     </div>
   </div>
 
   <section id="features">
     <div class="wrap">
-      <h2>What it does</h2>
-      <p class="sub">The full Archicad automation surface, shaped so an AI agent can use it without flooding its context or touching files it shouldn't.</p>
-      <div class="grid">
-        <div class="card">
+      <p class="kicker reveal">Features</p>
+      <h2 class="reveal">The whole Archicad API, shaped for agents.</h2>
+      <p class="sub reveal">Every command, without flooding the model's context or touching files it shouldn't.</p>
+      <div class="cards">
+        <div class="card reveal">
+          <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></div>
           <h3>351 Archicad commands</h3>
           <p>302 Tapir commands and 49 official JSON API commands, generated from their schemas and validated before anything reaches Archicad.</p>
         </div>
-        <div class="card">
+        <div class="card reveal" style="--d:.06s">
+          <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></div>
           <h3>Query and mutate in one call</h3>
           <p><code>archicad_query</code> finds elements by type, selection, classification or filter. <code>archicad_mutate</code> moves, rotates, edits, highlights or deletes them as one Undo step.</p>
         </div>
-        <div class="card">
+        <div class="card reveal" style="--d:.12s">
+          <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M4 12h10M4 17h6"/></svg></div>
           <h3>Element sets, not GUID dumps</h3>
           <p>Queries return a short <code>setId</code> and a count. The GUIDs stay on the server, and detail reads return only the fields you ask for.</p>
         </div>
-        <div class="card">
+        <div class="card reveal">
+          <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div>
           <h3>Built for long operations</h3>
           <p>Slow commands hand back a job handle instead of timing out. Large listings come in pages of 100.</p>
         </div>
-        <div class="card">
+        <div class="card reveal" style="--d:.06s">
+          <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4.5 6v6c0 4.5 3.2 7.8 7.5 9 4.3-1.2 7.5-4.5 7.5-9V6L12 3Z"/><path d="m9 12 2 2 4-4"/></svg></div>
           <h3>Safe by default</h3>
           <p>Files Archicad writes are confined to one output folder. HTTP transports listen only on this machine unless you allow remote access with a token.</p>
         </div>
-        <div class="card">
+        <div class="card reveal" style="--d:.12s">
+          <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4" width="13" height="10" rx="1.5"/><rect x="8.5" y="10" width="13" height="10" rx="1.5"/></svg></div>
           <h3>Several Archicads at once</h3>
           <p>Discover every running instance and send each command to the one you mean by its port. Works on Windows and macOS.</p>
         </div>
@@ -229,69 +371,88 @@
 
   <section id="install">
     <div class="wrap">
-      <h2>Get started</h2>
-      <p class="sub">Five minutes, no Python setup. <code>uv</code> provisions Python and the locked dependencies itself.</p>
+      <p class="kicker reveal">Get started</p>
+      <h2 class="reveal">Running in five minutes.</h2>
+      <p class="sub reveal">No Python setup: <code>uv</code> provisions Python and the locked dependencies itself.</p>
       <div class="steps">
-        <div class="step">
+        <div class="step-card reveal">
           <div>
             <h3>Install the prerequisites</h3>
             <p>Run Archicad with the <a href="https://github.com/ENZYME-APD/tapir-archicad-automation">Tapir add-on</a> installed, and install <a href="https://docs.astral.sh/uv/getting-started/installation/">uv</a> so it is on your PATH. Tested with Archicad 30 and Tapir 1.7.3.</p>
           </div>
         </div>
-        <div class="step">
+        <div class="step-card reveal">
           <div>
             <h3>Install the bundle</h3>
-            <p>Download <a href="https://github.com/parikshit99/Caracara-Archicad-MCP/releases/latest/download/caracara-archicad.mcpb">caracara-archicad.mcpb</a> and open it with Claude Desktop, Claude Code or another client that supports <a href="https://github.com/modelcontextprotocol/mcpb">MCP Bundles</a>. For unreleased changes, use the <a href="https://github.com/parikshit99/Caracara-Archicad-MCP/releases/download/weekly/caracara-archicad-weekly.mcpb">weekly build</a> instead.</p>
+            <p>Download <a href="https://github.com/parikshit99/Caracara-Archicad-MCP/releases/latest/download/caracara-archicad.mcpb">caracara-archicad.mcpb</a> and open it with Claude Desktop, Claude Code or another client that supports <a href="https://github.com/modelcontextprotocol/mcpb">MCP Bundles</a>. For unreleased changes, use the <a href="https://github.com/parikshit99/Caracara-Archicad-MCP/releases/download/weekly/caracara-archicad-weekly.mcpb">weekly build</a>.</p>
           </div>
         </div>
-        <div class="step">
+        <div class="step-card reveal">
           <div>
             <h3>Or configure it by hand</h3>
             <p>Add this to your client's MCP configuration (for Claude Desktop, <code>claude_desktop_config.json</code>):</p>
-<pre><code>{
-  "mcpServers": {
-    "ArchicadCaracara": {
-      "command": "uvx",
-      "args": [
-        "--from",
-        "git+https://github.com/parikshit99/Caracara-Archicad-MCP",
-        "caracara-server"
+            <div class="code">
+              <button class="copy" type="button" data-copy="config">Copy</button>
+<pre id="config"><code>{
+  <span class="tok-k">"mcpServers"</span>: {
+    <span class="tok-k">"ArchicadCaracara"</span>: {
+      <span class="tok-k">"command"</span>: <span class="tok-s">"uvx"</span>,
+      <span class="tok-k">"args"</span>: [
+        <span class="tok-s">"--from"</span>,
+        <span class="tok-s">"git+https://github.com/parikshit99/Caracara-Archicad-MCP"</span>,
+        <span class="tok-s">"caracara-server"</span>
       ]
     }
   }
 }</code></pre>
+            </div>
           </div>
         </div>
-        <div class="step">
+        <div class="step-card reveal">
           <div>
             <h3>Ask</h3>
             <p>Restart your client and try <em>"Which Archicad projects do I have open?"</em>, then <em>"Find every wall on the ground floor and highlight it in red."</em></p>
           </div>
         </div>
       </div>
-      <div class="callout">The server can change the open project, export files, and send or receive Teamwork changes. Treat installing it like handing your AI client your Archicad seat.</div>
+      <div class="callout reveal"><b>Heads up:</b> the server can change the open project, export files, and send or receive Teamwork changes. Treat installing it like handing your AI client your Archicad seat.</div>
     </div>
   </section>
 
   <section id="tools">
     <div class="wrap">
-      <h2>Tools</h2>
-      <p class="sub">A small toolset in front of the full command list, so the agent reaches for the high-level tools first.</p>
-      <div class="table-scroll">
-        <table>
-          <thead><tr><th scope="col">Tool</th><th scope="col">What it does</th></tr></thead>
-          <tbody>
-            <tr><td><code>discovery_list_active_archicads</code></td><td>Lists running Archicad instances and their ports, and flags ones that are unresponsive or missing Tapir.</td></tr>
-            <tr><td><code>archicad_query</code></td><td>Finds elements and reads their metadata; returns a set, element IDs, or just the fields you name.</td></tr>
-            <tr><td><code>archicad_mutate</code></td><td>Sets properties, moves, rotates, edits details, highlights or deletes a set of elements in one Undo step.</td></tr>
-            <tr><td><code>archicad_list_commands</code><span class="tag">low-level</span></td><td>Lists every command with a short description.</td></tr>
-            <tr><td><code>archicad_get_command_schema</code><span class="tag">low-level</span></td><td>Returns the argument schema of one command.</td></tr>
-            <tr><td><code>archicad_call_tool</code><span class="tag">low-level</span></td><td>Runs any command by name after validating its arguments.</td></tr>
-            <tr><td><code>archicad_get_job</code></td><td>Gets the result of a long-running command, or lists recent jobs to recover a lost response.</td></tr>
-          </tbody>
-        </table>
+      <p class="kicker reveal">Tools</p>
+      <h2 class="reveal">Seven tools in front of 351 commands.</h2>
+      <p class="sub reveal">The agent reaches for the high-level tools first and drops to the low-level ones only when it needs a specific command.</p>
+      <div class="tools">
+        <div class="tool reveal"><code>discovery_list_active_archicads</code><p>Lists running Archicad instances and their ports, and flags ones that are unresponsive or missing Tapir.</p></div>
+        <div class="tool reveal"><code>archicad_query</code><p>Finds elements and reads their metadata; returns a set, element IDs, or just the fields you name.</p></div>
+        <div class="tool reveal"><code>archicad_mutate</code><p>Sets properties, moves, rotates, edits details, highlights or deletes a set of elements in one Undo step.</p></div>
+        <div class="tool reveal"><code>archicad_list_commands<span class="tag">low-level</span></code><p>Lists every command with a short description.</p></div>
+        <div class="tool reveal"><code>archicad_get_command_schema<span class="tag">low-level</span></code><p>Returns the argument schema of one command.</p></div>
+        <div class="tool reveal"><code>archicad_call_tool<span class="tag">low-level</span></code><p>Runs any command by name after validating its arguments.</p></div>
+        <div class="tool reveal"><code>archicad_get_job</code><p>Gets the result of a long-running command, or lists recent jobs to recover a lost response.</p></div>
       </div>
-      <p style="margin-top:20px">Configuration options, HTTP transports and development setup are in the <a href="https://github.com/parikshit99/Caracara-Archicad-MCP#readme">README</a>.</p>
+      <p class="more reveal">Configuration options, HTTP transports and development setup are in the <a href="https://github.com/parikshit99/Caracara-Archicad-MCP#readme">README</a>.</p>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="cta reveal">
+        <h2>Give your assistant a seat in Archicad.</h2>
+        <p>Install the bundle, open a project, and start asking.</p>
+        <div class="actions">
+          <a class="btn primary" href="https://github.com/parikshit99/Caracara-Archicad-MCP/releases/latest/download/caracara-archicad.mcpb">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
+            Download for Claude
+          </a>
+          <a class="btn" href="https://github.com/parikshit99/Caracara-Archicad-MCP">
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5a11.5 11.5 0 0 0-3.64 22.41c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.37-3.88-1.37-.53-1.33-1.28-1.69-1.28-1.69-1.05-.71.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.29 1.19-3.1-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.17 1.18a11 11 0 0 1 5.78 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.81 1.19 1.84 1.19 3.1 0 4.42-2.7 5.39-5.26 5.68.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .5Z"/></svg>
+            View on GitHub
+          </a>
+        </div>
+      </div>
     </div>
   </section>
 </main>
@@ -304,15 +465,97 @@
 </footer>
 
 <script>
-  // Show the current stable version; the static text stays if the API is unreachable.
+(() => {
+  const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+  // Header border once the page scrolls.
+  const header = document.getElementById("top");
+  const onScroll = () => header.classList.toggle("scrolled", scrollY > 8);
+  addEventListener("scroll", onScroll, { passive: true }); onScroll();
+
+  // Reveal on scroll; stats count up when they appear.
+  const countUp = (el) => {
+    const target = +el.dataset.count;
+    if (reduced || target < 2) return;
+    const t0 = performance.now(), dur = 1100;
+    const tick = (t) => {
+      const p = Math.min(1, (t - t0) / dur);
+      el.textContent = Math.round(target * (1 - Math.pow(1 - p, 3)));
+      if (p < 1) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  };
+  const io = new IntersectionObserver((entries) => {
+    for (const e of entries) {
+      if (!e.isIntersecting) continue;
+      e.target.classList.add("in");
+      e.target.querySelectorAll("[data-count]").forEach(countUp);
+      io.unobserve(e.target);
+    }
+  }, { threshold: 0.12, rootMargin: "0px 0px -40px 0px" });
+  document.querySelectorAll(".reveal").forEach((el) => io.observe(el));
+
+  // Cursor glow on cards.
+  document.querySelectorAll(".card").forEach((card) => {
+    card.addEventListener("pointermove", (e) => {
+      const r = card.getBoundingClientRect();
+      card.style.setProperty("--mx", `${e.clientX - r.left}px`);
+      card.style.setProperty("--my", `${e.clientY - r.top}px`);
+    });
+  });
+
+  // Copy button.
+  document.querySelectorAll(".copy").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(document.getElementById(btn.dataset.copy).innerText);
+        btn.textContent = "Copied";
+      } catch { btn.textContent = "Select and copy"; }
+      setTimeout(() => (btn.textContent = "Copy"), 1600);
+    });
+  });
+
+  // The demo conversation: type the prompt, run the two tool calls, answer, repeat.
+  const prompt = "Find every wall on the ground floor and highlight it in red.";
+  const typed = document.getElementById("typed");
+  const steps = ["c1", "c2", "m2"].map((id) => document.getElementById(id));
+  const showFinal = () => {
+    typed.textContent = prompt;
+    steps.forEach((s) => { s.classList.add("on", "resolved"); s.querySelector(".status")?.classList.add("done"); });
+  };
+  const play = async () => {
+    for (;;) {
+      typed.textContent = "";
+      steps.forEach((s) => { s.classList.remove("on", "resolved"); s.querySelector(".status")?.classList.remove("done"); });
+      await sleep(600);
+      for (const ch of prompt) { typed.textContent += ch; await sleep(28 + Math.random() * 40); }
+      await sleep(500);
+      for (const call of steps.slice(0, 2)) {
+        call.classList.add("on"); await sleep(1100);
+        call.classList.add("resolved"); call.querySelector(".status").classList.add("done"); await sleep(500);
+      }
+      steps[2].classList.add("on");
+      await sleep(5200);
+    }
+  };
+  if (reduced) showFinal();
+  else {
+    const demo = document.getElementById("demo");
+    const start = new IntersectionObserver(([e]) => { if (e.isIntersecting) { start.disconnect(); play(); } });
+    start.observe(demo);
+  }
+
+  // Current stable version in the pill and under the buttons.
   fetch("https://api.github.com/repos/parikshit99/Caracara-Archicad-MCP/releases/latest")
     .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
     .then((release) => {
-      const date = new Date(release.published_at).toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" });
-      document.getElementById("release-note").textContent =
-        `Stable ${release.tag_name}, released ${date}. Installs as a one-click MCP Bundle.`;
+      const date = new Date(release.published_at).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+      document.getElementById("pill-text").innerHTML = `<b>${release.tag_name}</b> is out · MCP server for Archicad`;
+      document.getElementById("release-note").textContent = `Stable ${release.tag_name}, released ${date}. One-click MCP Bundle for Claude Desktop and Claude Code.`;
     })
     .catch(() => {});
+})();
 </script>
 </body>
 </html>
