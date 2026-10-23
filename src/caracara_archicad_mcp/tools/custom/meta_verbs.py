@@ -8,6 +8,8 @@ Collapses 80+ granular CRUD endpoints down into two composable MCP tools:
 from __future__ import annotations
 
 import logging
+from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
 from typing import Any
 
 from mcp.server.mcpserver.exceptions import ToolError
@@ -16,7 +18,9 @@ from mcp.types import ToolAnnotations
 from caracara_archicad_mcp.app import mcp
 from caracara_archicad_mcp.result_registry import ResultRegistry
 from caracara_archicad_mcp.safety import ensure_allowed
-from caracara_archicad_mcp.tools.custom.functions import archicad_call_tool
+from caracara_archicad_mcp.tools.custom.element_sets import element_ids, target_elements
+from caracara_archicad_mcp.tools.custom.functions import archicad_call_tool, is_running
+from caracara_archicad_mcp.tools.custom.mutation_checks import describe_hosted, hosted_elements, preflight
 
 log = logging.getLogger(__name__)
 
@@ -80,53 +84,24 @@ def _normalize_element_type(target: str) -> str:
     return type_map.get(cleaned, target.strip())
 
 
-def _is_running(result: Any) -> bool:
-    return isinstance(result, dict) and result.get("status") == "running" and "jobHandle" in result
-
-
-def _element_id(elem: Any) -> dict[str, Any] | None:
-    """Return the {'guid': ...} identifier of a stored element, or None if it has none."""
-    elem_id = elem.get("elementId", elem) if isinstance(elem, dict) else elem
-    if isinstance(elem_id, dict):
-        guid = elem_id.get("guid")
-    else:
-        guid = getattr(elem_id, "guid", elem_id if isinstance(elem_id, str) else None)
-    if not isinstance(guid, str) or not guid.strip():
-        return None
-    return {"guid": guid}
-
-
-def _element_ids(elements: list[Any]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    """Split elements into usable identifiers and itemized failures for malformed entries."""
-    ids: list[dict[str, Any]] = []
-    invalid: list[dict[str, Any]] = []
-    for index, elem in enumerate(elements):
-        elem_id = _element_id(elem)
-        if elem_id is None:
-            invalid.append({"index": index, "error": {"message": "Entry has no element GUID; skipped."}})
-        else:
-            ids.append(elem_id)
-    return ids, invalid
-
-
-def _itemize(result: Any, element_ids: list[dict[str, Any]], invalid: list[dict[str, Any]]) -> Any:
+def _itemize(result: Any, ids: list[dict[str, Any]], invalid: list[dict[str, Any]]) -> Any:
     """Attach per-element failures to a batch result without raising.
 
     Elements deleted, moved or locked after their set was created come back from
     Tapir as failed entries of 'executionResults' (positionally matching the
     request); they are listed in 'failedElements' so the batch result stays usable.
     """
-    if _is_running(result) or not isinstance(result, dict):
+    if is_running(result) or not isinstance(result, dict):
         return result
     failures = list(invalid)
     execution_results = result.get("executionResults")
     if isinstance(execution_results, list):
-        aligned = len(execution_results) == len(element_ids)
+        aligned = len(execution_results) == len(ids)
         for index, item in enumerate(execution_results):
             if isinstance(item, dict) and item.get("success") is False:
                 failure: dict[str, Any] = {"error": item.get("error", {})}
                 if aligned:
-                    failure["elementId"] = element_ids[index]
+                    failure["elementId"] = ids[index]
                 else:
                     failure["index"] = index
                 failures.append(failure)
@@ -141,7 +116,7 @@ def _itemize(result: Any, element_ids: list[dict[str, Any]], invalid: list[dict[
 async def _all_pages(name: str, arguments: dict[str, Any]) -> tuple[Any, list[dict[str, Any]]]:
     """Call a paginated listing and follow next_page_token until every element is collected."""
     result = await archicad_call_tool(name, arguments)
-    if _is_running(result):
+    if is_running(result):
         return result, []
     elements = list(result.get("elements", []))
     token = result.get("next_page_token")
@@ -162,118 +137,6 @@ def _vector(payload: dict[str, Any]) -> dict[str, float]:
         raise ToolError("'vector' components 'x', 'y' and 'z' must be numbers.") from None
 
 
-# Element types Archicad deletes together with the element that hosts them.
-HOSTED_ELEMENT_TYPES = ("Door", "Window", "Skylight", "Opening")
-DELETE_ACTIONS = ("delete", "destroy", "remove")
-# The Tapir command each archicad_mutate action runs, by every accepted spelling of the action.
-ACTION_COMMANDS = {
-    **dict.fromkeys(DELETE_ACTIONS, "DeleteElements"),
-    **dict.fromkeys(("highlight", "select"), "HighlightElements"),
-    **dict.fromkeys(
-        ("set_property", "set_properties", "update_property", "update_properties", "property_update"),
-        "SetPropertyValuesOfElements",
-    ),
-    **dict.fromkeys(("move", "translate"), "MoveElements"),
-    "rotate": "RotateElements",
-    **dict.fromkeys(("set_details", "update_details"), "SetDetailsOfElements"),
-}
-
-
-def _guids(elements: list[Any]) -> list[str]:
-    return [elem_id["guid"] for elem in elements if (elem_id := _element_id(elem)) is not None]
-
-
-async def _not_editable(element_ids: list[dict[str, Any]], port: int) -> tuple[list[dict[str, Any]], str | None]:
-    """Elements Archicad will refuse to change: on a locked layer, or not reserved by this user in Teamwork."""
-    try:
-        result = await archicad_call_tool(
-            "elements_filter_elements",
-            {"port": port, "params": {"elements": [{"elementId": e} for e in element_ids], "filters": ["IsEditable"]}},
-        )
-    except ToolError as error:
-        return [], f"Locked elements were not checked: {error}"
-    if _is_running(result):
-        return [], "The editability check is still running in Archicad, so locked elements were not checked."
-    set_id = result.get("setId", "")
-    if not ResultRegistry.has(set_id):
-        return [], "Locked elements were not checked: Archicad gave no answer."
-    editable = set(_guids(ResultRegistry.get(set_id)))
-    ResultRegistry.delete(set_id)
-    return [e for e in element_ids if e["guid"] not in editable], None
-
-
-async def _hosted_elements(element_ids: list[dict[str, Any]], port: int) -> tuple[list[dict[str, Any]], list[str]]:
-    """Doors, windows, skylights and openings outside the target that a delete would remove with their hosts."""
-    targets = {e["guid"] for e in element_ids}
-    hosted: dict[str, str] = {}
-    unchecked: list[str] = []
-    for element_type in HOSTED_ELEMENT_TYPES:
-        try:
-            result = await archicad_call_tool(
-                "elements_get_connected_elements",
-                {
-                    "port": port,
-                    "params": {
-                        "elements": [{"elementId": e} for e in element_ids],
-                        "connectedElementType": element_type,
-                    },
-                },
-            )
-        except ToolError as error:
-            unchecked.append(f"{element_type}: {error}")
-            continue
-        if _is_running(result) or not isinstance(result.get("connectedElements"), list):
-            unchecked.append(f"{element_type}: {result.get('error', {}).get('message', 'no answer from Archicad')}")
-            continue
-        for owner in result["connectedElements"]:
-            for guid in _guids(owner.get("elements", []) if isinstance(owner, dict) else []):
-                if guid not in targets:
-                    hosted.setdefault(guid, element_type)
-    return [{"elementId": {"guid": guid}, "type": kind} for guid, kind in hosted.items()], unchecked
-
-
-def _type_counts(hosted: list[dict[str, Any]]) -> str:
-    counts: dict[str, int] = {}
-    for item in hosted:
-        counts[item["type"]] = counts.get(item["type"], 0) + 1
-    return ", ".join(f"{count} {kind.lower()}{'s' if count != 1 else ''}" for kind, count in counts.items())
-
-
-async def _preflight(
-    action: str, element_ids: list[dict[str, Any]], invalid: list[dict[str, Any]], port: int
-) -> dict[str, Any]:
-    """Report what a mutation would affect, without changing anything."""
-    report: dict[str, Any] = {"action": action, "elementCount": len(element_ids)}
-    warnings: list[str] = []
-    if invalid:
-        report["invalidEntries"] = invalid[:MAX_ITEMIZED_FAILURES]
-        warnings.append(f"{len(invalid)} entries have no element GUID and will be skipped.")
-
-    if element_ids and ACTION_COMMANDS[action] != "HighlightElements":
-        not_editable, unchecked = await _not_editable(element_ids, port)
-        if unchecked:
-            warnings.append(unchecked)
-        if not_editable:
-            report["notEditableCount"] = len(not_editable)
-            report["notEditable"] = not_editable[:MAX_ITEMIZED_FAILURES]
-            warnings.append(
-                f"{len(not_editable)} of {len(element_ids)} elements cannot be changed: they are on a locked layer, "
-                "or, in a Teamwork project, not reserved by you. Archicad will skip them."
-            )
-
-    if element_ids and action in DELETE_ACTIONS:
-        hosted, unchecked_types = await _hosted_elements(element_ids, port)
-        report["hostedElementCount"] = len(hosted)
-        if hosted:
-            report["hostedElements"] = hosted[:MAX_ITEMIZED_FAILURES]
-            warnings.append(f"Deleting these elements also deletes {_type_counts(hosted)} placed in them.")
-        if unchecked_types:
-            report["uncheckedHostedTypes"] = unchecked_types
-
-    report["warnings"] = warnings
-    return report
-
-
 @mcp.tool(
     name="archicad_query",
     title="Query Archicad Elements & Metadata",
@@ -291,7 +154,7 @@ async def _preflight(
         openWorldHint=True,
     ),
 )
-async def archicad_query(
+async def archicad_query(  # noqa: C901 - predates REVIEW.md R7; split when next changed
     target: str,
     filter: dict[str, Any] | None = None,
     output: list[str] | str | None = None,
@@ -353,7 +216,7 @@ async def archicad_query(
         else:
             raw_elements = raw_res.get("elements", [])
 
-    if _is_running(raw_res):
+    if is_running(raw_res):
         # The command's own wrapper registers the set when the job completes.
         return raw_res
 
@@ -394,7 +257,7 @@ async def archicad_query(
             {"port": target_port, "params": details_params},
         )
         response = {"setId": set_id, "count": count, "elementType": element_type}
-        if _is_running(details_res):
+        if is_running(details_res):
             return {**response, **details_res}
         response["details"] = details_res.get("detailsOfElements", [])
         if details_res.get("next_page_token"):
@@ -404,6 +267,108 @@ async def archicad_query(
     raise ToolError(
         f"Unsupported output specification '{output}'. Supported: 'set', 'count', 'ids', or list of field names."
     )
+
+
+@dataclass
+class _Mutation:
+    """What every action of archicad_mutate works on."""
+
+    element_ids: list[dict[str, Any]]
+    invalid: list[dict[str, Any]]
+    set_id: str
+    payload: dict[str, Any] | None
+    port: int
+    confirm: bool = False
+
+    def require_payload(self, action: str, example: str = "") -> dict[str, Any]:
+        if not self.payload:
+            raise ToolError(f"Payload must be provided for '{action}' action{example}.")
+        return self.payload
+
+    def elements(self) -> list[dict[str, Any]]:
+        return [{"elementId": e} for e in self.element_ids]
+
+    async def run(self, command: str, params: dict[str, Any]) -> Any:
+        """Run one Tapir command, which Archicad applies as one Undo step, and itemize failed elements."""
+        result = await archicad_call_tool(command, {"port": self.port, "params": params})
+        return _itemize(result, self.element_ids, self.invalid)
+
+
+async def _delete(m: _Mutation) -> Any:
+    if not m.confirm and m.element_ids:
+        hosted, _ = await hosted_elements(m.element_ids, m.port)
+        if hosted:
+            return {
+                "deleted": False,
+                "needsConfirmation": True,
+                "message": (
+                    f"Nothing was deleted. These elements host {describe_hosted(hosted)}, which Archicad would "
+                    "delete too. Ask the user; if they agree, repeat this call with confirm=true."
+                ),
+                "hostedElementCount": len(hosted),
+                "hostedElements": hosted[:MAX_ITEMIZED_FAILURES],
+            }
+    return await m.run("elements_delete_elements", {"elements": m.elements()})
+
+
+async def _highlight(m: _Mutation) -> Any:
+    params: dict[str, Any] = {"elements": m.elements()}
+    for key in ("highlightedColors", "wireframe3D", "nonHighlightedColor"):
+        if m.payload and key in m.payload:
+            params[key] = m.payload[key]
+    return await m.run("elements_highlight_elements", params)
+
+
+async def _set_property(m: _Mutation) -> Any:
+    params = dict(m.require_payload("set_property"))
+    params["targetSetId"] = m.set_id
+    return await m.run("properties_set_property_values_of_elements", params)
+
+
+async def _move(m: _Mutation) -> Any:
+    payload = m.require_payload("move", " (e.g. {'x': 1.0, 'y': 0.0, 'z': 0.0})")
+    vector, copy = _vector(payload), payload.get("copy", False)
+    moves = [{"elementId": e, "moveVector": vector, "copy": copy} for e in m.element_ids]
+    return await m.run("elements_move_elements", {"elementsWithMoveVectors": moves})
+
+
+async def _rotate(m: _Mutation) -> Any:
+    payload = m.require_payload("rotate")
+    rotation, copy = payload.get("rotation", payload), payload.get("copy", False)
+    rotations = [{"elementId": e, "rotation": rotation, "copy": copy} for e in m.element_ids]
+    return await m.run("elements_rotate_elements", {"elementsWithRotations": rotations})
+
+
+async def _set_details(m: _Mutation) -> Any:
+    payload = m.require_payload("set_details")
+    details = payload.get("details", payload)
+    if not isinstance(details, dict):
+        raise ToolError("'details' must be an object.")
+    items = [{"elementId": e, "details": details} for e in m.element_ids]
+    return await m.run("elements_set_details_of_elements", {"elementsWithDetails": items})
+
+
+# Every accepted spelling of an action, and the function that carries it out.
+MUTATION_ACTIONS: dict[str, Callable[[_Mutation], Awaitable[Any]]] = {
+    **dict.fromkeys(("delete", "destroy", "remove"), _delete),
+    **dict.fromkeys(("highlight", "select"), _highlight),
+    **dict.fromkeys(
+        ("set_property", "set_properties", "update_property", "update_properties", "property_update"),
+        _set_property,
+    ),
+    **dict.fromkeys(("move", "translate"), _move),
+    "rotate": _rotate,
+    **dict.fromkeys(("set_details", "update_details"), _set_details),
+}
+# The Archicad command behind each action, for read-only mode.
+ACTION_COMMANDS = {
+    _delete: "DeleteElements",
+    _highlight: "HighlightElements",
+    _set_property: "SetPropertyValuesOfElements",
+    _move: "MoveElements",
+    _rotate: "RotateElements",
+    _set_details: "SetDetailsOfElements",
+}
 
 
 @mcp.tool(
@@ -437,111 +402,28 @@ async def archicad_mutate(
     confirm: bool = False,
 ) -> dict[str, Any]:
     """Execute a polymorphic mutation on Archicad elements."""
-    target_port = port or 19723
-
-    # 1. Resolve elements from target_set
-    if isinstance(target_set, str):
-        elements = ResultRegistry.get_or_tool_error(target_set)
-        set_id = target_set
-    elif isinstance(target_set, list):
-        elements = target_set
-        set_id = ResultRegistry.register(elements)
-    else:
-        raise ToolError("Invalid target_set: must be a set_id handle (str) or a list of element dictionaries.")
-
-    action_lower = action.strip().lower()
-    if action_lower not in ACTION_COMMANDS:
+    action = action.strip().lower()
+    run_action = MUTATION_ACTIONS.get(action)
+    if run_action is None:
         raise ToolError(
             f"Unsupported action '{action}'. "
             "Supported actions: 'delete', 'highlight', 'set_property', 'move', 'rotate', 'set_details'."
         )
     if not dry_run:
-        ensure_allowed(ACTION_COMMANDS[action_lower])
-    element_ids, invalid = _element_ids(elements)
-
+        ensure_allowed(ACTION_COMMANDS[run_action])
+    elements = target_elements(target_set)
+    # An explicit element list gets a set of its own, so set-based commands can address it.
+    set_id = target_set if isinstance(target_set, str) else ResultRegistry.register(elements)
+    ids, invalid = element_ids(elements)
+    target_port = port or 19723
     if dry_run:
-        return {"dryRun": True, **await _preflight(action_lower, element_ids, invalid, target_port)}
-
-    # 2. Route based on action. Every action is one Tapir command, which Tapir runs
-    # as a single undoable command in Archicad (one Undo step per batch).
-    if action_lower in DELETE_ACTIONS:
-        if not confirm:
-            hosted, _ = await _hosted_elements(element_ids, target_port) if element_ids else ([], [])
-            if hosted:
-                return {
-                    "deleted": False,
-                    "needsConfirmation": True,
-                    "message": (
-                        f"Nothing was deleted. These elements host {_type_counts(hosted)}, which Archicad would "
-                        "delete too. Ask the user; if they agree, repeat this call with confirm=true."
-                    ),
-                    "hostedElementCount": len(hosted),
-                    "hostedElements": hosted[:MAX_ITEMIZED_FAILURES],
-                }
-        result = await archicad_call_tool(
-            "elements_delete_elements",
-            {"port": target_port, "params": {"elements": [{"elementId": e} for e in element_ids]}},
+        report = await preflight(
+            action,
+            ids,
+            invalid,
+            target_port,
+            changes_model=run_action is not _highlight,
+            deletes=run_action is _delete,
         )
-        return _itemize(result, element_ids, invalid)
-
-    if ACTION_COMMANDS[action_lower] == "HighlightElements":
-        highlight_params: dict[str, Any] = {"elements": [{"elementId": e} for e in element_ids]}
-        if payload:
-            for k in ("highlightedColors", "wireframe3D", "nonHighlightedColor"):
-                if k in payload:
-                    highlight_params[k] = payload[k]
-        result = await archicad_call_tool(
-            "elements_highlight_elements",
-            {"port": target_port, "params": highlight_params},
-        )
-        return _itemize(result, element_ids, invalid)
-
-    if action_lower in ("set_property", "set_properties", "update_property", "update_properties", "property_update"):
-        if not payload:
-            raise ToolError("Payload must be provided for 'set_property' action.")
-        prop_params = dict(payload)
-        prop_params["targetSetId"] = set_id
-        result = await archicad_call_tool(
-            "properties_set_property_values_of_elements",
-            {"port": target_port, "params": prop_params},
-        )
-        return _itemize(result, element_ids, invalid)
-
-    if action_lower in ("move", "translate"):
-        if not payload:
-            raise ToolError("Payload must be provided for 'move' action (e.g. {'x': 1.0, 'y': 0.0, 'z': 0.0}).")
-        move_vector = _vector(payload)
-        copy_val = payload.get("copy", False)
-        move_vectors = [{"elementId": elem_id, "moveVector": move_vector, "copy": copy_val} for elem_id in element_ids]
-        result = await archicad_call_tool(
-            "elements_move_elements",
-            {"port": target_port, "params": {"elementsWithMoveVectors": move_vectors}},
-        )
-        return _itemize(result, element_ids, invalid)
-
-    if action_lower in ("rotate",):
-        if not payload:
-            raise ToolError("Payload must be provided for 'rotate' action.")
-        rot = payload.get("rotation", payload)
-        copy_val = payload.get("copy", False)
-        rotations = [{"elementId": elem_id, "rotation": rot, "copy": copy_val} for elem_id in element_ids]
-        result = await archicad_call_tool(
-            "elements_rotate_elements",
-            {"port": target_port, "params": {"elementsWithRotations": rotations}},
-        )
-        return _itemize(result, element_ids, invalid)
-
-    if action_lower in ("set_details", "update_details"):
-        if not payload:
-            raise ToolError("Payload must be provided for 'set_details' action.")
-        details = payload.get("details", payload)
-        if not isinstance(details, dict):
-            raise ToolError("'details' must be an object.")
-        items = [{"elementId": elem_id, "details": details} for elem_id in element_ids]
-        result = await archicad_call_tool(
-            "elements_set_details_of_elements",
-            {"port": target_port, "params": {"elementsWithDetails": items}},
-        )
-        return _itemize(result, element_ids, invalid)
-
-    raise AssertionError(f"Action '{action_lower}' is listed in ACTION_COMMANDS but not handled.")
+        return {"dryRun": True, **report}
+    return await run_action(_Mutation(ids, invalid, set_id, payload, target_port, confirm))
