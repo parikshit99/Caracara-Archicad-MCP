@@ -1,0 +1,303 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Caracara Archicad MCP</title>
+<meta name="description" content="An MCP server that lets Claude and other AI agents work with running Archicad projects through the Tapir add-on and Archicad's JSON API.">
+<meta property="og:title" content="Caracara Archicad MCP">
+<meta property="og:description" content="Let AI agents query and edit running Archicad projects: 351 Tapir and official JSON API commands behind a small, safe MCP toolset.">
+<meta property="og:type" content="website">
+<link rel="icon" type="image/png" href="icon.png">
+<style>
+  :root {
+    --bg: #fbfaf7;
+    --surface: #ffffff;
+    --surface-2: #f3f1ec;
+    --text: #1c1b19;
+    --muted: #5f5c55;
+    --border: #e3dfd6;
+    --accent: #b4532a;
+    --accent-strong: #8f3f1d;
+    --accent-ink: #ffffff;
+    --code-bg: #f3f1ec;
+    --shadow: 0 1px 2px rgb(0 0 0 / 0.04), 0 8px 24px rgb(0 0 0 / 0.06);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #151412;
+      --surface: #1d1c19;
+      --surface-2: #26241f;
+      --text: #ece9e2;
+      --muted: #a8a397;
+      --border: #34312b;
+      --accent: #e0805a;
+      --accent-strong: #f09a76;
+      --accent-ink: #1a0f0a;
+      --code-bg: #26241f;
+      --shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 8px 24px rgb(0 0 0 / 0.3);
+    }
+  }
+
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 16px/1.6 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+  a { color: var(--accent); text-underline-offset: 2px; }
+  a:hover { color: var(--accent-strong); }
+  code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; font-size: 0.9em; }
+  code { background: var(--code-bg); padding: 0.1em 0.35em; border-radius: 4px; }
+  pre {
+    margin: 0;
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    overflow-x: auto;
+    line-height: 1.5;
+  }
+  pre code { background: none; padding: 0; }
+
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 0 16px; }
+
+  header.top {
+    border-bottom: 1px solid var(--border);
+  }
+  header.top .wrap {
+    display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    height: 60px;
+  }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 650; color: var(--text); text-decoration: none; }
+  .brand img { width: 28px; height: 28px; border-radius: 6px; background: #fff; }
+  nav.links { display: flex; gap: 20px; font-size: 0.95rem; }
+  nav.links a { color: var(--muted); text-decoration: none; }
+  nav.links a:hover { color: var(--text); }
+  @media (max-width: 640px) { nav.links .opt { display: none; } }
+
+  .hero { padding: 72px 0 56px; }
+  .hero .eyebrow { color: var(--accent); font-weight: 600; font-size: 0.9rem; letter-spacing: 0.02em; margin: 0 0 12px; }
+  .hero h1 { font-size: clamp(2rem, 5vw, 3.1rem); line-height: 1.12; letter-spacing: -0.02em; margin: 0 0 18px; max-width: 18ch; }
+  .hero p.lede { font-size: 1.15rem; color: var(--muted); max-width: 60ch; margin: 0 0 28px; }
+
+  .actions { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 11px 18px; border-radius: 10px; font-weight: 600; text-decoration: none;
+    border: 1px solid var(--border); background: var(--surface); color: var(--text);
+  }
+  .btn:hover { color: var(--text); border-color: var(--muted); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+  .btn.primary:hover { background: var(--accent-strong); border-color: var(--accent-strong); color: var(--accent-ink); }
+  .btn svg { width: 18px; height: 18px; flex: none; }
+  .release-note { color: var(--muted); font-size: 0.9rem; margin-top: 14px; min-height: 1.6em; }
+
+  section { padding: 56px 0; border-top: 1px solid var(--border); }
+  section h2 { font-size: 1.6rem; letter-spacing: -0.01em; margin: 0 0 8px; }
+  section > .wrap > p.sub { color: var(--muted); margin: 0 0 28px; max-width: 65ch; }
+
+  .grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+  .card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+    padding: 20px; box-shadow: var(--shadow);
+  }
+  .card h3 { margin: 0 0 6px; font-size: 1.05rem; }
+  .card p { margin: 0; color: var(--muted); font-size: 0.95rem; }
+
+  .steps { counter-reset: step; display: grid; gap: 20px; }
+  .step { display: grid; grid-template-columns: 36px 1fr; gap: 14px; align-items: start; }
+  .step::before {
+    counter-increment: step; content: counter(step);
+    width: 36px; height: 36px; border-radius: 50%;
+    display: grid; place-items: center; font-weight: 700;
+    background: var(--surface-2); border: 1px solid var(--border);
+  }
+  .step h3 { margin: 4px 0 6px; font-size: 1.05rem; }
+  .step p { margin: 0 0 10px; color: var(--muted); }
+  .step > div { min-width: 0; }
+
+  .table-scroll { overflow-x: auto; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
+  table { width: 100%; border-collapse: collapse; font-size: 0.95rem; }
+  th, td { text-align: left; padding: 12px 16px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+  th { font-weight: 600; background: var(--surface-2); }
+  td:first-child { white-space: nowrap; }
+  @media (max-width: 640px) {
+    thead { display: none; }
+    tr, td { display: block; }
+    td { border-bottom: none; padding: 4px 16px; }
+    td:first-child { padding-top: 14px; white-space: normal; overflow-wrap: anywhere; }
+    td:last-child { padding-bottom: 14px; color: var(--muted); }
+    tr { border-bottom: 1px solid var(--border); }
+    tr:last-child { border-bottom: none; }
+  }
+  .tag { font-size: 0.75rem; font-weight: 600; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); margin-left: 6px; white-space: nowrap; }
+
+  .callout {
+    border-left: 3px solid var(--accent); background: var(--surface-2);
+    padding: 14px 18px; border-radius: 0 10px 10px 0; color: var(--muted); margin-top: 24px;
+  }
+
+  footer { border-top: 1px solid var(--border); padding: 32px 0 48px; color: var(--muted); font-size: 0.9rem; }
+  footer p { margin: 0 0 8px; }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="#"><img src="icon.png" alt="" width="28" height="28">Caracara</a>
+    <nav class="links" aria-label="Main">
+      <a class="opt" href="#features">Features</a>
+      <a class="opt" href="#install">Install</a>
+      <a class="opt" href="#tools">Tools</a>
+      <a href="https://github.com/parikshit99/Caracara-Archicad-MCP">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <div class="hero">
+    <div class="wrap">
+      <p class="eyebrow">MCP server for Archicad</p>
+      <h1>Let your AI assistant work in Archicad.</h1>
+      <p class="lede">Caracara connects Claude and other MCP clients to running Archicad projects. Ask in plain language to find, inspect, change or export elements, and it drives Archicad through the Tapir add-on and the official JSON API.</p>
+      <div class="actions">
+        <a class="btn primary" href="https://github.com/parikshit99/Caracara-Archicad-MCP/releases/latest/download/caracara-archicad.mcpb">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
+          Download for Claude
+        </a>
+        <a class="btn" href="https://github.com/parikshit99/Caracara-Archicad-MCP">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5a11.5 11.5 0 0 0-3.64 22.41c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.37-3.88-1.37-.53-1.33-1.28-1.69-1.28-1.69-1.05-.71.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.29 1.19-3.1-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.17 1.18a11 11 0 0 1 5.78 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.81 1.19 1.84 1.19 3.1 0 4.42-2.7 5.39-5.26 5.68.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .5Z"/></svg>
+          View on GitHub
+        </a>
+      </div>
+      <p class="release-note" id="release-note">Stable release, installs as a one-click MCP Bundle.</p>
+    </div>
+  </div>
+
+  <section id="features">
+    <div class="wrap">
+      <h2>What it does</h2>
+      <p class="sub">The full Archicad automation surface, shaped so an AI agent can use it without flooding its context or touching files it shouldn't.</p>
+      <div class="grid">
+        <div class="card">
+          <h3>351 Archicad commands</h3>
+          <p>302 Tapir commands and 49 official JSON API commands, generated from their schemas and validated before anything reaches Archicad.</p>
+        </div>
+        <div class="card">
+          <h3>Query and mutate in one call</h3>
+          <p><code>archicad_query</code> finds elements by type, selection, classification or filter. <code>archicad_mutate</code> moves, rotates, edits, highlights or deletes them as one Undo step.</p>
+        </div>
+        <div class="card">
+          <h3>Element sets, not GUID dumps</h3>
+          <p>Queries return a short <code>setId</code> and a count. The GUIDs stay on the server, and detail reads return only the fields you ask for.</p>
+        </div>
+        <div class="card">
+          <h3>Built for long operations</h3>
+          <p>Slow commands hand back a job handle instead of timing out. Large listings come in pages of 100.</p>
+        </div>
+        <div class="card">
+          <h3>Safe by default</h3>
+          <p>Files Archicad writes are confined to one output folder. HTTP transports listen only on this machine unless you allow remote access with a token.</p>
+        </div>
+        <div class="card">
+          <h3>Several Archicads at once</h3>
+          <p>Discover every running instance and send each command to the one you mean by its port. Works on Windows and macOS.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="install">
+    <div class="wrap">
+      <h2>Get started</h2>
+      <p class="sub">Five minutes, no Python setup. <code>uv</code> provisions Python and the locked dependencies itself.</p>
+      <div class="steps">
+        <div class="step">
+          <div>
+            <h3>Install the prerequisites</h3>
+            <p>Run Archicad with the <a href="https://github.com/ENZYME-APD/tapir-archicad-automation">Tapir add-on</a> installed, and install <a href="https://docs.astral.sh/uv/getting-started/installation/">uv</a> so it is on your PATH. Tested with Archicad 30 and Tapir 1.7.3.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div>
+            <h3>Install the bundle</h3>
+            <p>Download <a href="https://github.com/parikshit99/Caracara-Archicad-MCP/releases/latest/download/caracara-archicad.mcpb">caracara-archicad.mcpb</a> and open it with Claude Desktop, Claude Code or another client that supports <a href="https://github.com/modelcontextprotocol/mcpb">MCP Bundles</a>. For unreleased changes, use the <a href="https://github.com/parikshit99/Caracara-Archicad-MCP/releases/download/weekly/caracara-archicad-weekly.mcpb">weekly build</a> instead.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div>
+            <h3>Or configure it by hand</h3>
+            <p>Add this to your client's MCP configuration (for Claude Desktop, <code>claude_desktop_config.json</code>):</p>
+<pre><code>{
+  "mcpServers": {
+    "ArchicadCaracara": {
+      "command": "uvx",
+      "args": [
+        "--from",
+        "git+https://github.com/parikshit99/Caracara-Archicad-MCP",
+        "caracara-server"
+      ]
+    }
+  }
+}</code></pre>
+          </div>
+        </div>
+        <div class="step">
+          <div>
+            <h3>Ask</h3>
+            <p>Restart your client and try <em>"Which Archicad projects do I have open?"</em>, then <em>"Find every wall on the ground floor and highlight it in red."</em></p>
+          </div>
+        </div>
+      </div>
+      <div class="callout">The server can change the open project, export files, and send or receive Teamwork changes. Treat installing it like handing your AI client your Archicad seat.</div>
+    </div>
+  </section>
+
+  <section id="tools">
+    <div class="wrap">
+      <h2>Tools</h2>
+      <p class="sub">A small toolset in front of the full command list, so the agent reaches for the high-level tools first.</p>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th scope="col">Tool</th><th scope="col">What it does</th></tr></thead>
+          <tbody>
+            <tr><td><code>discovery_list_active_archicads</code></td><td>Lists running Archicad instances and their ports, and flags ones that are unresponsive or missing Tapir.</td></tr>
+            <tr><td><code>archicad_query</code></td><td>Finds elements and reads their metadata; returns a set, element IDs, or just the fields you name.</td></tr>
+            <tr><td><code>archicad_mutate</code></td><td>Sets properties, moves, rotates, edits details, highlights or deletes a set of elements in one Undo step.</td></tr>
+            <tr><td><code>archicad_list_commands</code><span class="tag">low-level</span></td><td>Lists every command with a short description.</td></tr>
+            <tr><td><code>archicad_get_command_schema</code><span class="tag">low-level</span></td><td>Returns the argument schema of one command.</td></tr>
+            <tr><td><code>archicad_call_tool</code><span class="tag">low-level</span></td><td>Runs any command by name after validating its arguments.</td></tr>
+            <tr><td><code>archicad_get_job</code></td><td>Gets the result of a long-running command, or lists recent jobs to recover a lost response.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p style="margin-top:20px">Configuration options, HTTP transports and development setup are in the <a href="https://github.com/parikshit99/Caracara-Archicad-MCP#readme">README</a>.</p>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <p>Caracara is a personal, experimental fork of <a href="https://github.com/SzamosiMate/tapir-archicad-MCP">tapir-archicad-MCP</a> by Máté Szamosi, built on the <a href="https://github.com/ENZYME-APD/tapir-archicad-automation">Tapir</a> add-on by Enzyme APD. For production use, prefer the upstream project.</p>
+    <p>MIT licensed · <a href="https://github.com/parikshit99/Caracara-Archicad-MCP/releases">Releases</a> · <a href="https://github.com/parikshit99/Caracara-Archicad-MCP/issues">Issues</a> · Tapir icon © 2024 Enzyme APD, MIT</p>
+  </div>
+</footer>
+
+<script>
+  // Show the current stable version; the static text stays if the API is unreachable.
+  fetch("https://api.github.com/repos/parikshit99/Caracara-Archicad-MCP/releases/latest")
+    .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
+    .then((release) => {
+      const date = new Date(release.published_at).toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" });
+      document.getElementById("release-note").textContent =
+        `Stable ${release.tag_name}, released ${date}. Installs as a one-click MCP Bundle.`;
+    })
+    .catch(() => {});
+</script>
+</body>
+</html>
