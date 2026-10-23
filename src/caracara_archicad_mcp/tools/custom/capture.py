@@ -23,8 +23,8 @@ from mcp.types import ToolAnnotations
 
 from caracara_archicad_mcp.app import mcp
 from caracara_archicad_mcp.file_paths import confine_path
-from caracara_archicad_mcp.tools.custom.functions import archicad_call_tool
-from caracara_archicad_mcp.tools.custom.meta_verbs import _element_id, _is_running
+from caracara_archicad_mcp.tools.custom.element_sets import element_id
+from caracara_archicad_mcp.tools.custom.functions import call_and_wait
 
 TOOL_NAME = "archicad_capture_view"
 # Larger images are scaled down by the model anyway; this keeps previews within that.
@@ -65,8 +65,8 @@ async def _window_image(port: int, entire_drawing: bool) -> bytes:
     params: dict[str, Any] = {"imageFilePath": str(path), "format": "jpg"}
     if entire_drawing:
         params["entireDrawing"] = True
-    result = await archicad_call_tool("project_save_current_window_as_image", {"port": port, "params": params})
-    if _is_running(result) or not isinstance(result, dict) or not result.get("imageFilePath"):
+    result = await call_and_wait("project_save_current_window_as_image", {"port": port, "params": params})
+    if not isinstance(result, dict) or not result.get("imageFilePath"):
         path.unlink(missing_ok=True)
         raise ToolError(f"Archicad did not save the window image: {result}")
     try:
@@ -78,18 +78,18 @@ async def _window_image(port: int, entire_drawing: bool) -> bytes:
 
 
 async def _element_image(port: int, element: Any, view: str, size: int) -> bytes:
-    element_id = _element_id(element)
-    if element_id is None:
+    elem_id = element_id(element)
+    if elem_id is None:
         raise ToolError("'element' must be an element identifier such as {'guid': '...'}.")
     side = max(64, min(size, MAX_PREVIEW_SIZE))
-    result = await archicad_call_tool(
+    result = await call_and_wait(
         "elements_get_element_preview_image",
         {
             "port": port,
-            "params": {"elementId": element_id, "imageType": view, "format": "jpg", "width": side, "height": side},
+            "params": {"elementId": elem_id, "imageType": view, "format": "jpg", "width": side, "height": side},
         },
     )
-    if _is_running(result) or not isinstance(result, dict) or not result.get("previewImage"):
+    if not isinstance(result, dict) or not result.get("previewImage"):
         raise ToolError(f"Archicad returned no preview image: {result}")
     return _checked(base64.b64decode(result["previewImage"]))
 
