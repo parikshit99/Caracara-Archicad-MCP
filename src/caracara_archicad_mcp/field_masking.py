@@ -15,7 +15,7 @@ def _to_snake_case(s: str) -> str:
     return re.sub(r"(?<!^)(?=[A-Z])", "_", s).lower()
 
 
-def project_element(item: dict[str, Any], fields: list[str]) -> dict[str, Any]:
+def project_element(item: dict[str, Any], fields: list[str]) -> dict[str, Any]:  # noqa: C901 - predates REVIEW.md R7; split when next changed
     """Project an element dictionary to only include requested fields.
 
     Strips polygon arrays, raw coordinates, internal memos, and any other
