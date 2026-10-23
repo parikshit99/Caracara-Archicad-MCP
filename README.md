@@ -201,6 +201,8 @@ uv run python scripts/generate_tools.py    # regenerate command wrappers after c
 
 Do not edit `src/caracara_archicad_mcp/tools/generated/` by hand: CI regenerates it and fails on any difference. Put custom behaviour in `tools/overrides.py` instead.
 
+Every change, by a person or an AI agent, follows the rules in [REVIEW.md](REVIEW.md); [CLAUDE.md](CLAUDE.md) (and [AGENTS.md](AGENTS.md) for other agents) tells AI agents how to work here. CI enforces the rules it can: function complexity, commented-out code, `print` in the package, private imports across modules, and direct Archicad calls outside the command layer.
+
 ### Continuous integration and releases
 
 -   **Every push and pull request to `master`** runs lint and format checks, a lock-file check, a check that generated tools match the generator, a `pip-audit` vulnerability audit of the locked dependencies, tests with at least 85% coverage on Windows, macOS and Linux with Python 3.12–3.14, and a package and MCPB bundle build.
