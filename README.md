@@ -18,7 +18,7 @@ The server is a bridge that lets AI agents and applications (Claude Desktop, Cla
 
 -   **High-level query and mutate tools.** `archicad_query` and `archicad_mutate` cover the most common element work in one call each, so the agent does not have to find, read and call individual commands.
 -   **Element sets instead of GUID lists (`result_registry`).** Queries return an opaque `setId` and a count. The element GUIDs stay in server memory, so large selections do not fill the model's context. Sets are bounded (50 sets, 500,000 elements in total, evicted least recently used) and expire after an hour unused.
--   **Field masking (`field_masking`).** Element detail reads return only the fields you ask for (e.g. `["id", "storyIndex"]`), dropping polygon arrays and other bulky data.
+-   **Field masking (`field_masking`).** Element detail reads return only the fields you ask for (e.g. `["id", "storyIndex", "details.thickness"]`), dropping polygon arrays and other bulky data. Names are matched exactly (dot paths reach nested values, and `storyIndex`/`floorIndex` are interchangeable); names that no element has are listed in `unknownFields`.
 -   **Pagination.** Large listings are returned 100 items at a time with a `next_page_token`; `archicad_query` follows the pages itself.
 -   **Long-running jobs.** Slow commands return a job handle instead of timing out (see [Long-Running Commands](#long-running-commands)).
 -   **Safer file output.** Paths that Archicad writes to (exports, archives, Save As, screenshots, publishing) are confined to one output directory.

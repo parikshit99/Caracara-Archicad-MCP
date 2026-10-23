@@ -1,8 +1,8 @@
-"""Polymorphic Meta-Verbs for Archicad MCP.
+"""archicad_query and archicad_mutate: the common element work, one tool call each.
 
-Collapses 80+ granular CRUD endpoints down into two composable MCP tools:
-1. archicad_query(target, filter, output): Handles discovery, criteria search, and metadata extraction.
-2. archicad_mutate(target_set, action, payload): Handles property updates, geometric transformations, and deletions.
+archicad_query finds elements (by type, selection, classification or filter), stores them
+as a set and returns its setId with the fields asked for. archicad_mutate changes the
+elements of a set with one Archicad command, which is one Undo step.
 """
 
 from __future__ import annotations
@@ -14,6 +14,7 @@ from typing import Any
 
 from mcp.server.mcpserver.exceptions import ToolError
 from mcp.types import ToolAnnotations
+from multiconn_archicad.models.tapir.types import ElementType
 
 from caracara_archicad_mcp.app import mcp
 from caracara_archicad_mcp.result_registry import ResultRegistry
@@ -28,58 +29,17 @@ MAX_INLINE_ELEMENTS = 1000
 MAX_ITEMIZED_FAILURES = 50
 
 
+# Archicad's element type names by their lowercase spelling without underscores.
+_ELEMENT_TYPES = {element_type.value.lower(): element_type.value for element_type in ElementType}
+
+
 def _normalize_element_type(target: str) -> str:
-    """Normalize element type names to standard Archicad capitalization."""
-    type_map = {
-        "wall": "Wall",
-        "walls": "Wall",
-        "column": "Column",
-        "columns": "Column",
-        "slab": "Slab",
-        "slabs": "Slab",
-        "beam": "Beam",
-        "beams": "Beam",
-        "door": "Door",
-        "doors": "Door",
-        "window": "Window",
-        "windows": "Window",
-        "roof": "Roof",
-        "roofs": "Roof",
-        "mesh": "Mesh",
-        "meshes": "Mesh",
-        "zone": "Zone",
-        "zones": "Zone",
-        "morph": "Morph",
-        "morphs": "Morph",
-        "object": "Object",
-        "objects": "Object",
-        "stair": "Stair",
-        "stairs": "Stair",
-        "railing": "Railing",
-        "railings": "Railing",
-        "curtainwall": "CurtainWall",
-        "curtainwalls": "CurtainWall",
-        "curtain_wall": "CurtainWall",
-        "curtain_walls": "CurtainWall",
-        "hatch": "Hatch",
-        "hatches": "Hatch",
-        "line": "Line",
-        "lines": "Line",
-        "polyline": "Polyline",
-        "polylines": "Polyline",
-        "arc": "Arc",
-        "arcs": "Arc",
-        "circle": "Circle",
-        "circles": "Circle",
-        "text": "Text",
-        "texts": "Text",
-        "label": "Label",
-        "labels": "Label",
-        "dimension": "Dimension",
-        "dimensions": "Dimension",
-    }
-    cleaned = target.strip().lower()
-    return type_map.get(cleaned, target.strip())
+    """'walls', 'Curtain_Walls', 'polyline' -> Archicad's own spelling ('Wall', 'CurtainWall', 'PolyLine')."""
+    key = target.strip().lower().replace("_", "")
+    for candidate in (key, key.removesuffix("es"), key.removesuffix("s")):
+        if candidate in _ELEMENT_TYPES:
+            return _ELEMENT_TYPES[candidate]
+    return target.strip()
 
 
 def _itemize(result: Any, ids: list[dict[str, Any]], invalid: list[dict[str, Any]]) -> Any:
@@ -135,6 +95,83 @@ def _vector(payload: dict[str, Any]) -> dict[str, float]:
         raise ToolError("'vector' components 'x', 'y' and 'z' must be numbers.") from None
 
 
+@dataclass
+class _Found:
+    """What a query found: the listing's raw result, its elements, and the set they are stored in, if any."""
+
+    raw: Any
+    elements: list[dict[str, Any]]
+    element_type: str
+    set_id: str | None = None
+
+
+def _from_receipt(raw: Any, element_type: str) -> _Found:
+    """A listing whose override already stored its elements as a set and returned a receipt."""
+    set_id = raw.get("setId") if isinstance(raw, dict) else None
+    if set_id and ResultRegistry.has(set_id):
+        elements = ResultRegistry.get(set_id)
+    else:
+        elements = raw.get("elements", []) if isinstance(raw, dict) else []
+    return _Found(raw, elements, element_type, set_id)
+
+
+async def _find(target: str, filter: dict[str, Any] | None, port: int) -> _Found:
+    kind = target.strip().lower()
+    filters = {"filters": filter["filters"]} if filter and "filters" in filter else {}
+
+    if kind in ("selected", "selection"):
+        raw, elements = await _all_pages("elements_get_selected_elements", {"port": port})
+        return _Found(raw, elements, "Selected")
+    if kind in ("all", "all_elements", "elements"):
+        raw, elements = await _all_pages("elements_get_all_elements", {"port": port, "params": filters})
+        return _Found(raw, elements, "Element")
+    if kind in ("classified", "classification") or (filter and "classificationItemId" in filter):
+        if not filter or "classificationItemId" not in filter:
+            raise ToolError("When target is 'classified', filter must include 'classificationItemId'.")
+        params = {"classificationItemId": filter["classificationItemId"]}
+        raw = await archicad_call_tool("elements_get_elements_by_classification", {"port": port, "params": params})
+        return _from_receipt(raw, "Classified")
+    if kind in ("filter", "filtered"):
+        if not filter:
+            raise ToolError("When target is 'filter', filter dictionary must be provided.")
+        raw = await archicad_call_tool("elements_filter_elements", {"port": port, "params": filter})
+        return _from_receipt(raw, "Filtered")
+
+    element_type = _normalize_element_type(target)
+    params = {"elementType": element_type, **filters}
+    raw = await archicad_call_tool("elements_get_elements_by_type", {"port": port, "params": params})
+    return _from_receipt(raw, element_type)
+
+
+async def _query_output(found: _Found, set_id: str, output: list[str] | str | None, port: int) -> dict[str, Any]:
+    response: dict[str, Any] = {"setId": set_id, "count": len(found.elements), "elementType": found.element_type}
+    if output in (None, "set", "count"):
+        return response
+
+    if output in ("ids", "elements", "guid", "guids"):
+        response["elements"] = found.elements[:MAX_INLINE_ELEMENTS]
+        if len(found.elements) > MAX_INLINE_ELEMENTS:
+            response["truncated"] = True
+        return response
+
+    if isinstance(output, list) or output in ("details", "full"):
+        details_params: dict[str, Any] = {"elements": found.elements}
+        if isinstance(output, list) and output:
+            details_params["fields"] = output
+        details = await archicad_call_tool("elements_get_details_of_elements", {"port": port, "params": details_params})
+        if is_running(details):
+            return {**response, **details}
+        response["details"] = details.get("detailsOfElements", [])
+        for key in ("next_page_token", "unknownFields"):
+            if details.get(key):
+                response[key] = details[key]
+        return response
+
+    raise ToolError(
+        f"Unsupported output specification '{output}'. Supported: 'set', 'count', 'ids', or list of field names."
+    )
+
+
 @mcp.tool(
     name="archicad_query",
     title="Query Archicad Elements & Metadata",
@@ -152,7 +189,7 @@ def _vector(payload: dict[str, Any]) -> dict[str, float]:
         openWorldHint=True,
     ),
 )
-async def archicad_query(  # noqa: C901 - predates REVIEW.md R7; split when next changed
+async def archicad_query(
     target: str,
     filter: dict[str, Any] | None = None,
     output: list[str] | str | None = None,
@@ -160,111 +197,14 @@ async def archicad_query(  # noqa: C901 - predates REVIEW.md R7; split when next
 ) -> dict[str, Any]:
     """Execute a polymorphic query in Archicad."""
     target_port = port or 19723
-    target_lower = target.strip().lower()
-    set_id: str | None = None
-    raw_elements: list[dict[str, Any]] = []
-    element_type: str = target
-
-    # 1. Routing to appropriate discovery tool
-    if target_lower in ("selected", "selection"):
-        raw_res, raw_elements = await _all_pages("elements_get_selected_elements", {"port": target_port})
-        element_type = "Selected"
-
-    elif target_lower in ("all", "all_elements", "elements"):
-        params: dict[str, Any] = {}
-        if filter and "filters" in filter:
-            params["filters"] = filter["filters"]
-        raw_res, raw_elements = await _all_pages("elements_get_all_elements", {"port": target_port, "params": params})
-        element_type = "Element"
-
-    elif target_lower in ("classified", "classification") or (filter and "classificationItemId" in filter):
-        if not filter or "classificationItemId" not in filter:
-            raise ToolError("When target is 'classified', filter must include 'classificationItemId'.")
-        raw_res = await archicad_call_tool(
-            "elements_get_elements_by_classification",
-            {"port": target_port, "params": {"classificationItemId": filter["classificationItemId"]}},
-        )
-        set_id = raw_res.get("setId")
-        if set_id and ResultRegistry.has(set_id):
-            raw_elements = ResultRegistry.get(set_id)
-        else:
-            raw_elements = raw_res.get("elements", [])
-        element_type = "Classified"
-
-    elif target_lower in ("filter", "filtered") or (filter and "criterias" in filter and "elements" in filter):
-        if not filter:
-            raise ToolError("When target is 'filter', filter dictionary must be provided.")
-        raw_res = await archicad_call_tool("elements_filter_elements", {"port": target_port, "params": filter})
-        set_id = raw_res.get("setId")
-        if set_id and ResultRegistry.has(set_id):
-            raw_elements = ResultRegistry.get(set_id)
-        else:
-            raw_elements = raw_res.get("elements", [])
-        element_type = "Filtered"
-
-    else:
-        element_type = _normalize_element_type(target)
-        params = {"elementType": element_type}
-        if filter and "filters" in filter:
-            params["filters"] = filter["filters"]
-        raw_res = await archicad_call_tool("elements_get_elements_by_type", {"port": target_port, "params": params})
-        set_id = raw_res.get("setId")
-        if set_id and ResultRegistry.has(set_id):
-            raw_elements = ResultRegistry.get(set_id)
-        else:
-            raw_elements = raw_res.get("elements", [])
-
-    if is_running(raw_res):
+    found = await _find(target, filter, target_port)
+    if is_running(found.raw):
         # The command's own wrapper registers the set when the job completes.
-        return raw_res
-
-    # 2. Ensure stored in ResultRegistry
+        return found.raw
+    set_id = found.set_id
     if not set_id or not ResultRegistry.has(set_id):
-        set_id = ResultRegistry.register(raw_elements, element_type=element_type)
-
-    count = len(raw_elements)
-
-    # 3. Output formatting & metadata projection
-    if output in (None, "set", "count"):
-        return {
-            "setId": set_id,
-            "count": count,
-            "elementType": element_type,
-        }
-
-    if output in ("ids", "elements", "guid", "guids"):
-        response: dict[str, Any] = {
-            "setId": set_id,
-            "count": count,
-            "elementType": element_type,
-            "elements": raw_elements[:MAX_INLINE_ELEMENTS],
-        }
-        if count > MAX_INLINE_ELEMENTS:
-            response["truncated"] = True
-        return response
-
-    if isinstance(output, list) or output in ("details", "full"):
-        # Metadata extraction with field projection
-        fields = output if isinstance(output, list) else None
-        details_params: dict[str, Any] = {"elements": raw_elements}
-        if fields:
-            details_params["fields"] = fields
-
-        details_res = await archicad_call_tool(
-            "elements_get_details_of_elements",
-            {"port": target_port, "params": details_params},
-        )
-        response = {"setId": set_id, "count": count, "elementType": element_type}
-        if is_running(details_res):
-            return {**response, **details_res}
-        response["details"] = details_res.get("detailsOfElements", [])
-        if details_res.get("next_page_token"):
-            response["next_page_token"] = details_res["next_page_token"]
-        return response
-
-    raise ToolError(
-        f"Unsupported output specification '{output}'. Supported: 'set', 'count', 'ids', or list of field names."
-    )
+        set_id = ResultRegistry.register(found.elements, element_type=found.element_type)
+    return await _query_output(found, set_id, output, target_port)
 
 
 @dataclass
