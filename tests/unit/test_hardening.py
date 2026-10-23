@@ -214,10 +214,12 @@ async def test_each_mutation_is_one_tapir_command(fake_archicad, action, payload
     """Tapir wraps one command in one undoable operation, so a batch must be one call."""
     set_id = ResultRegistry.register([{"elementId": {"guid": _guid(i)}} for i in range(25)], element_type="Wall")
     fake_archicad.on_tapir_command(command, {"executionResults": [{"success": True}] * 25})
+    # A delete first checks, read-only, for doors and windows hosted in the elements.
+    fake_archicad.on_tapir_command("GetConnectedElements", {"connectedElements": [{"elements": []}] * 25})
 
     await archicad_mutate(set_id, action, payload, port=fake_archicad.port)
 
-    assert [call[0] for call in fake_archicad.calls] == [command]
+    assert [call[0] for call in fake_archicad.calls if call[0] != "GetConnectedElements"] == [command]
 
 
 @pytest.mark.asyncio

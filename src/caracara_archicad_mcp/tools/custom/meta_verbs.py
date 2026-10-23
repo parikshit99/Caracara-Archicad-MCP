@@ -15,6 +15,7 @@ from mcp.types import ToolAnnotations
 
 from caracara_archicad_mcp.app import mcp
 from caracara_archicad_mcp.result_registry import ResultRegistry
+from caracara_archicad_mcp.safety import ensure_allowed
 from caracara_archicad_mcp.tools.custom.functions import archicad_call_tool
 
 log = logging.getLogger(__name__)
@@ -161,6 +162,118 @@ def _vector(payload: dict[str, Any]) -> dict[str, float]:
         raise ToolError("'vector' components 'x', 'y' and 'z' must be numbers.") from None
 
 
+# Element types Archicad deletes together with the element that hosts them.
+HOSTED_ELEMENT_TYPES = ("Door", "Window", "Skylight", "Opening")
+DELETE_ACTIONS = ("delete", "destroy", "remove")
+# The Tapir command each archicad_mutate action runs, by every accepted spelling of the action.
+ACTION_COMMANDS = {
+    **dict.fromkeys(DELETE_ACTIONS, "DeleteElements"),
+    **dict.fromkeys(("highlight", "select"), "HighlightElements"),
+    **dict.fromkeys(
+        ("set_property", "set_properties", "update_property", "update_properties", "property_update"),
+        "SetPropertyValuesOfElements",
+    ),
+    **dict.fromkeys(("move", "translate"), "MoveElements"),
+    "rotate": "RotateElements",
+    **dict.fromkeys(("set_details", "update_details"), "SetDetailsOfElements"),
+}
+
+
+def _guids(elements: list[Any]) -> list[str]:
+    return [elem_id["guid"] for elem in elements if (elem_id := _element_id(elem)) is not None]
+
+
+async def _not_editable(element_ids: list[dict[str, Any]], port: int) -> tuple[list[dict[str, Any]], str | None]:
+    """Elements Archicad will refuse to change: on a locked layer, or not reserved by this user in Teamwork."""
+    try:
+        result = await archicad_call_tool(
+            "elements_filter_elements",
+            {"port": port, "params": {"elements": [{"elementId": e} for e in element_ids], "filters": ["IsEditable"]}},
+        )
+    except ToolError as error:
+        return [], f"Locked elements were not checked: {error}"
+    if _is_running(result):
+        return [], "The editability check is still running in Archicad, so locked elements were not checked."
+    set_id = result.get("setId", "")
+    if not ResultRegistry.has(set_id):
+        return [], "Locked elements were not checked: Archicad gave no answer."
+    editable = set(_guids(ResultRegistry.get(set_id)))
+    ResultRegistry.delete(set_id)
+    return [e for e in element_ids if e["guid"] not in editable], None
+
+
+async def _hosted_elements(element_ids: list[dict[str, Any]], port: int) -> tuple[list[dict[str, Any]], list[str]]:
+    """Doors, windows, skylights and openings outside the target that a delete would remove with their hosts."""
+    targets = {e["guid"] for e in element_ids}
+    hosted: dict[str, str] = {}
+    unchecked: list[str] = []
+    for element_type in HOSTED_ELEMENT_TYPES:
+        try:
+            result = await archicad_call_tool(
+                "elements_get_connected_elements",
+                {
+                    "port": port,
+                    "params": {
+                        "elements": [{"elementId": e} for e in element_ids],
+                        "connectedElementType": element_type,
+                    },
+                },
+            )
+        except ToolError as error:
+            unchecked.append(f"{element_type}: {error}")
+            continue
+        if _is_running(result) or not isinstance(result.get("connectedElements"), list):
+            unchecked.append(f"{element_type}: {result.get('error', {}).get('message', 'no answer from Archicad')}")
+            continue
+        for owner in result["connectedElements"]:
+            for guid in _guids(owner.get("elements", []) if isinstance(owner, dict) else []):
+                if guid not in targets:
+                    hosted.setdefault(guid, element_type)
+    return [{"elementId": {"guid": guid}, "type": kind} for guid, kind in hosted.items()], unchecked
+
+
+def _type_counts(hosted: list[dict[str, Any]]) -> str:
+    counts: dict[str, int] = {}
+    for item in hosted:
+        counts[item["type"]] = counts.get(item["type"], 0) + 1
+    return ", ".join(f"{count} {kind.lower()}{'s' if count != 1 else ''}" for kind, count in counts.items())
+
+
+async def _preflight(
+    action: str, element_ids: list[dict[str, Any]], invalid: list[dict[str, Any]], port: int
+) -> dict[str, Any]:
+    """Report what a mutation would affect, without changing anything."""
+    report: dict[str, Any] = {"action": action, "elementCount": len(element_ids)}
+    warnings: list[str] = []
+    if invalid:
+        report["invalidEntries"] = invalid[:MAX_ITEMIZED_FAILURES]
+        warnings.append(f"{len(invalid)} entries have no element GUID and will be skipped.")
+
+    if element_ids and ACTION_COMMANDS[action] != "HighlightElements":
+        not_editable, unchecked = await _not_editable(element_ids, port)
+        if unchecked:
+            warnings.append(unchecked)
+        if not_editable:
+            report["notEditableCount"] = len(not_editable)
+            report["notEditable"] = not_editable[:MAX_ITEMIZED_FAILURES]
+            warnings.append(
+                f"{len(not_editable)} of {len(element_ids)} elements cannot be changed: they are on a locked layer, "
+                "or, in a Teamwork project, not reserved by you. Archicad will skip them."
+            )
+
+    if element_ids and action in DELETE_ACTIONS:
+        hosted, unchecked_types = await _hosted_elements(element_ids, port)
+        report["hostedElementCount"] = len(hosted)
+        if hosted:
+            report["hostedElements"] = hosted[:MAX_ITEMIZED_FAILURES]
+            warnings.append(f"Deleting these elements also deletes {_type_counts(hosted)} placed in them.")
+        if unchecked_types:
+            report["uncheckedHostedTypes"] = unchecked_types
+
+    report["warnings"] = warnings
+    return report
+
+
 @mcp.tool(
     name="archicad_query",
     title="Query Archicad Elements & Metadata",
@@ -302,7 +415,11 @@ async def archicad_query(
         "action and payload: 'set_property' {'propertyId', 'propertyValue'} or {'propertyValues': [...]}; "
         "'move' {'vector': {'x','y','z'}}; 'rotate' {'rotation': {...}}; 'set_details' {'details': {...}}; "
         "'highlight' {'highlightedColors', 'wireframe3D'}; 'delete' {}. "
-        "Elements that no longer exist or cannot be changed are listed in 'failedElements'."
+        "Elements that no longer exist or cannot be changed are listed in 'failedElements'. "
+        "dry_run=true changes nothing and reports what would happen: elements on locked layers or not reserved "
+        "in Teamwork, and for 'delete' the doors, windows, skylights and openings that would be deleted with "
+        "their walls, slabs or roofs. A delete that would remove such hosted elements is held back and returns "
+        "that report instead; show it to the user and repeat the call with confirm=true only if they agree."
     ),
     annotations=ToolAnnotations(
         readOnlyHint=False,
@@ -316,6 +433,8 @@ async def archicad_mutate(
     action: str,
     payload: dict[str, Any] | None = None,
     port: int | None = None,
+    dry_run: bool = False,
+    confirm: bool = False,
 ) -> dict[str, Any]:
     """Execute a polymorphic mutation on Archicad elements."""
     target_port = port or 19723
@@ -331,18 +450,41 @@ async def archicad_mutate(
         raise ToolError("Invalid target_set: must be a set_id handle (str) or a list of element dictionaries.")
 
     action_lower = action.strip().lower()
+    if action_lower not in ACTION_COMMANDS:
+        raise ToolError(
+            f"Unsupported action '{action}'. "
+            "Supported actions: 'delete', 'highlight', 'set_property', 'move', 'rotate', 'set_details'."
+        )
+    if not dry_run:
+        ensure_allowed(ACTION_COMMANDS[action_lower])
     element_ids, invalid = _element_ids(elements)
+
+    if dry_run:
+        return {"dryRun": True, **await _preflight(action_lower, element_ids, invalid, target_port)}
 
     # 2. Route based on action. Every action is one Tapir command, which Tapir runs
     # as a single undoable command in Archicad (one Undo step per batch).
-    if action_lower in ("delete", "destroy", "remove"):
+    if action_lower in DELETE_ACTIONS:
+        if not confirm:
+            hosted, _ = await _hosted_elements(element_ids, target_port) if element_ids else ([], [])
+            if hosted:
+                return {
+                    "deleted": False,
+                    "needsConfirmation": True,
+                    "message": (
+                        f"Nothing was deleted. These elements host {_type_counts(hosted)}, which Archicad would "
+                        "delete too. Ask the user; if they agree, repeat this call with confirm=true."
+                    ),
+                    "hostedElementCount": len(hosted),
+                    "hostedElements": hosted[:MAX_ITEMIZED_FAILURES],
+                }
         result = await archicad_call_tool(
             "elements_delete_elements",
             {"port": target_port, "params": {"elements": [{"elementId": e} for e in element_ids]}},
         )
         return _itemize(result, element_ids, invalid)
 
-    if action_lower in ("highlight", "select"):
+    if ACTION_COMMANDS[action_lower] == "HighlightElements":
         highlight_params: dict[str, Any] = {"elements": [{"elementId": e} for e in element_ids]}
         if payload:
             for k in ("highlightedColors", "wireframe3D", "nonHighlightedColor"):
@@ -402,7 +544,4 @@ async def archicad_mutate(
         )
         return _itemize(result, element_ids, invalid)
 
-    raise ToolError(
-        f"Unsupported action '{action}'. "
-        "Supported actions: 'delete', 'highlight', 'set_property', 'move', 'rotate', 'set_details'."
-    )
+    raise AssertionError(f"Action '{action_lower}' is listed in ACTION_COMMANDS but not handled.")
