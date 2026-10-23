@@ -97,6 +97,21 @@ other Caracara entry while testing, so the AI cannot use the old version by mist
 - [ ] Move, rotate, set a property and highlight a set of elements. Each works, and each is one
       undo step.
 
+**Sets that are out of date**
+
+A set remembers which elements a query found; it doesn't follow later changes in Archicad.
+- [ ] **Ask:** "Find all walls on the ground floor." Then, **in Archicad by hand**, delete one of those
+      walls and move another.
+- [ ] **Ask:** "Move the walls you just found 0.5 m north." (same set, don't let it query again)
+  - [ ] The wall you moved by hand moves too.
+  - [ ] The deleted wall is reported under `failedElements`; the other walls still move, and
+        nothing else in the model is affected.
+- [ ] Draw a new wall on the ground floor by hand, then repeat the move → the new wall is **not**
+      moved (expected: the set was found before it existed). Note whether the AI warns you about
+      this: ______
+- [ ] Ctrl+Z the hand deletion so the wall comes back, then repeat the move → note whether the
+      restored wall moves with the set again: ______
+
 **Teamwork (only if you have a Teamwork project)**
 - [ ] Dry run on elements **not reserved by you** → they're listed as not editable.
 
