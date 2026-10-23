@@ -23,6 +23,7 @@ from caracara_archicad_mcp.file_paths import confine_write_paths
 from caracara_archicad_mcp.jobs import JobStore
 from caracara_archicad_mcp.pagination import PaginationRequest, prepare_result
 from caracara_archicad_mcp.request_lifecycle import DispatchLifecycle
+from caracara_archicad_mcp.safety import ensure_allowed
 from caracara_archicad_mcp.tools.custom.models import (
     CommandOverview,
     CommandSchema,
@@ -251,6 +252,7 @@ async def archicad_call_tool(name: str, arguments: dict) -> dict:
             arguments["params"] = {"fields": fields_arg}
 
     tool_entry = get_tool_entry(name)
+    ensure_allowed(TOOL_DISCOVERY_CATALOG[name]["title"])
     try:
         validated_arguments = tool_entry.arguments_model.model_validate(arguments)
     except ValidationError as e:

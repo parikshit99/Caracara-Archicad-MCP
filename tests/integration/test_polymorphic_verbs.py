@@ -264,6 +264,7 @@ async def test_complex_composable_workflow_chaining_both_meta_verbs(fake_archica
     fake_archicad.on_tapir_command("SetPropertyValuesOfElements", {"executionResults": [{"success": True}]})
     fake_archicad.on_tapir_command("MoveElements", {"executionResults": [{"success": True}]})
     fake_archicad.on_tapir_command("DeleteElements", {"executionResults": [{"success": True}]})
+    fake_archicad.on_tapir_command("GetConnectedElements", {"connectedElements": [{"elements": []}] * 2})
 
     # Step 1: Query & Extract Pruned Details
     query_res = await archicad_query(

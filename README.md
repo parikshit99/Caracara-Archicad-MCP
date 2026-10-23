@@ -22,6 +22,8 @@ The server is a bridge that lets AI agents and applications (Claude Desktop, Cla
 -   **Pagination.** Large listings are returned 100 items at a time with a `next_page_token`; `archicad_query` follows the pages itself.
 -   **Long-running jobs.** Slow commands return a job handle instead of timing out (see [Long-Running Commands](#long-running-commands)).
 -   **Safer file output.** Paths that Archicad writes to (exports, archives, Save As, screenshots, publishing) are confined to one output directory.
+-   **Safety checks before changes.** `archicad_mutate` can preview a change with `dry_run=true`: it lists elements Archicad would skip (locked layer, or not reserved by you in Teamwork) and, for a delete, the doors, windows, skylights and openings that would be deleted with their host. A delete that would remove such hosted elements waits for `confirm=true`, so the AI has to ask first.
+-   **Read-only mode.** With `--read-only` (or the "Read-only mode" switch in the `.mcpb` settings), the AI can look at projects but every command that could change, delete, save or export anything is refused. Commands are allowed by name (`Get…`, `Is…`, `Filter…`, plus highlighting and view refreshes), so a command added by a future Tapir release stays blocked until it is reviewed.
 -   **Locked-down HTTP transports.** HTTP binds to loopback by default; binding any other address needs `--allow-remote` and a bearer token.
 
 ---
@@ -32,7 +34,7 @@ The server is a bridge that lets AI agents and applications (Claude Desktop, Cla
 | :--- | :--- |
 | `discovery_list_active_archicads` | Lists running Archicad instances with their `port`, and instances that are unresponsive or missing the Tapir add-on. Warns when the installed Tapir version differs from the supported one. |
 | `archicad_query` | Finds elements and reads their metadata. `target` is an element type (`Wall`, `Slab`, `Door`, ...) or `all`, `selected`, `classified`, `filter`. `output` is `set` (default: `setId` and count), `ids` (up to 1,000 element identifiers) or a list of field names. |
-| `archicad_mutate` | Changes the elements of a `setId` (or an explicit element list), as one Undo step per call. Actions: `set_property`, `move`, `rotate`, `set_details`, `highlight`, `delete`. Elements that cannot be changed are reported in `failedElements`. |
+| `archicad_mutate` | Changes the elements of a `setId` (or an explicit element list), as one Undo step per call. Actions: `set_property`, `move`, `rotate`, `set_details`, `highlight`, `delete`. Elements that cannot be changed are reported in `failedElements`. `dry_run=true` previews the change without making it; a delete that would also remove hosted doors or windows needs `confirm=true`. |
 | `archicad_list_commands` | Lists all 351 command names with short descriptions. |
 | `archicad_get_command_schema` | Returns the JSON schema of one command's arguments. |
 | `archicad_call_tool` | Runs any command by name, after validating its arguments against the schema. |
@@ -128,6 +130,7 @@ The server is configured with CLI flags or environment variables. Each variable 
 | `--async-threshold-seconds` | `CARACARA_MCP_ASYNC_THRESHOLD_SECONDS` | `45` | Seconds to wait before returning a running job handle |
 | `--job-ttl-seconds` | `CARACARA_MCP_JOB_TTL_SECONDS` | `86400` | Seconds to keep finished jobs; `0` disables time-based expiry |
 | `--max-completed-jobs` | `CARACARA_MCP_MAX_COMPLETED_JOBS` | `128` | Maximum number of finished jobs to keep |
+| `--read-only` | `CARACARA_MCP_READ_ONLY` | off | Refuse every command that could change the project, files or Teamwork state; reading, highlighting and dry runs still work |
 
 Paths Archicad only reads (opening a project, importing BCF) are not confined, so they can reach your existing files.
 
