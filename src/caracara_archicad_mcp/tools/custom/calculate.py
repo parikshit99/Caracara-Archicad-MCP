@@ -17,7 +17,7 @@ from mcp.types import ToolAnnotations
 from caracara_archicad_mcp.app import mcp
 from caracara_archicad_mcp.calculation import CalculationError, Table, describe, run_query, snake_case, sqlite_type
 from caracara_archicad_mcp.tools.custom.element_sets import element_ids, target_elements
-from caracara_archicad_mcp.tools.custom.functions import archicad_call_tool, call_and_wait
+from caracara_archicad_mcp.tools.custom.functions import call_and_collect, call_and_wait
 
 MAX_ELEMENTS = 100_000
 DETAIL_FIELDS = ["type", "id", "floorIndex", "layerIndex"]
@@ -45,20 +45,6 @@ COMPONENT_COLUMNS = {
 }
 
 
-async def _collect(name: str, arguments: dict[str, Any], field: str) -> list[Any]:
-    """Every item of a paginated listing, in order."""
-    result = await call_and_wait(name, arguments)
-    if not isinstance(result, dict) or not isinstance(result.get(field), list):
-        raise ToolError(f"Archicad returned no '{field}': {result}")
-    items = list(result[field])
-    token = result.get("next_page_token")
-    while token:
-        page = await archicad_call_tool(name, {**arguments, "page_token": token})
-        items.extend(page.get(field, []))
-        token = page.get("next_page_token")
-    return items
-
-
 async def _names(port: int, warnings: list[str]) -> tuple[dict[int, str], dict[int, str], dict[str, str]]:
     """Story names by index, layer names by index and building material names by GUID, as far as available."""
     stories: dict[int, str] = {}
@@ -73,7 +59,7 @@ async def _names(port: int, warnings: list[str]) -> tuple[dict[int, str], dict[i
         warnings.append(f"Story names are missing: {error}")
     for attribute_type, names, key in (("Layer", layers, "index"), ("BuildingMaterial", materials, "guid")):
         try:
-            for header in await _collect(
+            for header in await call_and_collect(
                 "attributes_get_attributes_by_type",
                 {"port": port, "params": {"attributeType": attribute_type}},
                 "attributes",
@@ -95,12 +81,12 @@ def _typed_columns(fixed: dict[str, str], rows: list[dict[str, Any]]) -> dict[st
 
 async def _load_tables(ids: list[dict[str, Any]], port: int, warnings: list[str]) -> list[Table]:
     elements = [{"elementId": elem_id} for elem_id in ids]
-    details = await _collect(
+    details = await call_and_collect(
         "elements_get_details_of_elements",
         {"port": port, "params": {"elements": elements, "fields": DETAIL_FIELDS}},
         "detailsOfElements",
     )
-    quantities = await _collect(
+    quantities = await call_and_collect(
         "elements_get_quantities_of_elements", {"port": port, "params": {"elements": elements}}, "quantitiesOfElements"
     )
     if len(details) != len(ids) or len(quantities) != len(ids):
