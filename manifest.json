@@ -39,7 +39,18 @@
         "${__dirname}",
         "caracara-server"
       ],
-      "env": {}
+      "env": {
+        "CARACARA_MCP_ALLOW_IMAGES": "${user_config.allow_images}"
+      }
+    }
+  },
+  "user_config": {
+    "allow_images": {
+      "type": "boolean",
+      "title": "Allow pictures of the design",
+      "description": "Let the AI take screenshots of Archicad to check its work. The pictures are sent to your AI provider, like everything else the AI reads. Off by default.",
+      "default": false,
+      "required": false
     }
   },
   "tools": [

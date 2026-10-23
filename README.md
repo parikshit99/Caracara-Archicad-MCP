@@ -33,6 +33,7 @@ The server is a bridge that lets AI agents and applications (Claude Desktop, Cla
 | `discovery_list_active_archicads` | Lists running Archicad instances with their `port`, and instances that are unresponsive or missing the Tapir add-on. Warns when the installed Tapir version differs from the supported one. |
 | `archicad_query` | Finds elements and reads their metadata. `target` is an element type (`Wall`, `Slab`, `Door`, ...) or `all`, `selected`, `classified`, `filter`. `output` is `set` (default: `setId` and count), `ids` (up to 1,000 element identifiers) or a list of field names. |
 | `archicad_mutate` | Changes the elements of a `setId` (or an explicit element list), as one Undo step per call. Actions: `set_property`, `move`, `rotate`, `set_details`, `highlight`, `delete`. Elements that cannot be changed are reported in `failedElements`. |
+| `archicad_capture_view` | **Off by default; offered only when the user allows images.** Returns a picture so the agent can check its work: the Archicad window currently in front (optionally the entire 2D drawing), or a 3D, 2D or section preview of one element. Pictures of the design go to the AI provider, which is why the user has to switch this on. |
 | `archicad_list_commands` | Lists all 351 command names with short descriptions. |
 | `archicad_get_command_schema` | Returns the JSON schema of one command's arguments. |
 | `archicad_call_tool` | Runs any command by name, after validating its arguments against the schema. |
@@ -128,6 +129,7 @@ The server is configured with CLI flags or environment variables. Each variable 
 | `--async-threshold-seconds` | `CARACARA_MCP_ASYNC_THRESHOLD_SECONDS` | `45` | Seconds to wait before returning a running job handle |
 | `--job-ttl-seconds` | `CARACARA_MCP_JOB_TTL_SECONDS` | `86400` | Seconds to keep finished jobs; `0` disables time-based expiry |
 | `--max-completed-jobs` | `CARACARA_MCP_MAX_COMPLETED_JOBS` | `128` | Maximum number of finished jobs to keep |
+| `--allow-images` | `CARACARA_MCP_ALLOW_IMAGES` | off | Offer `archicad_capture_view`, which sends pictures of the design to the AI provider. When off, the tool is not offered at all |
 
 Paths Archicad only reads (opening a project, importing BCF) are not confined, so they can reach your existing files.
 
