@@ -48,6 +48,10 @@ caracara-server = "caracara_archicad_mcp.server:main"
 tapir-archicad-mcp = "caracara_archicad_mcp.server:main"
 caracara-archicad = "caracara_archicad_mcp.server:main"
 
+[tool.hatch.build.targets.sdist]
+# The website and logo masters are not part of the Python package.
+exclude = ["/site", "/branding"]
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/caracara_archicad_mcp", "src/tapir_archicad_mcp"]
 
