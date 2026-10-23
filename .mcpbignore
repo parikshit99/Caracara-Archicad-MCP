@@ -16,3 +16,4 @@ server/lib/
 server/venv/
 .agents/
 site/
+branding/
