@@ -15,30 +15,20 @@ from mcp.server.mcpserver.exceptions import ToolError
 from mcp.types import ToolAnnotations
 
 from caracara_archicad_mcp.app import mcp
-from caracara_archicad_mcp.tools.custom.functions import _build_ready_instance, _get_header, archicad_call_tool
-from caracara_archicad_mcp.tools.custom.meta_verbs import _is_running
+from caracara_archicad_mcp.tools.custom.functions import call_and_collect, call_and_wait, ready_instance
 
 MAX_LISTED_LAYERS = 500
 
 
-async def _read(name: str, arguments: dict[str, Any], field: str) -> Any:
-    """The given field of a read command's result, following pages for list fields."""
-    result = await archicad_call_tool(name, arguments)
-    if _is_running(result):
-        raise ToolError("Archicad is still computing it; ask again in a moment")
+async def _field(name: str, arguments: dict[str, Any], field: str) -> Any:
+    result = await call_and_wait(name, arguments)
     if not isinstance(result, dict) or field not in result:
         raise ToolError(f"Archicad returned no '{field}'")
-    value = result[field]
-    token = result.get("next_page_token")
-    while token and isinstance(value, list):
-        page = await archicad_call_tool(name, {**arguments, "page_token": token})
-        value = value + page.get(field, [])
-        token = page.get("next_page_token")
-    return value
+    return result[field]
 
 
 async def _stories(port: int) -> list[dict[str, Any]]:
-    stories = await _read("project_get_stories", {"port": port}, "stories")
+    stories = await call_and_collect("project_get_stories", {"port": port}, "stories")
     return [
         {key: story.get(key) for key in ("index", "name", "level", "height") if story.get(key) is not None}
         for story in stories
@@ -46,17 +36,17 @@ async def _stories(port: int) -> list[dict[str, Any]]:
 
 
 async def _units(port: int) -> dict[str, Any]:
-    result = await archicad_call_tool("project_get_calculation_units", {"port": port})
+    result = await call_and_wait("project_get_calculation_units", {"port": port})
     if not isinstance(result, dict) or "length" not in result:
         raise ToolError("Archicad returned no calculation units")
     return {kind: result[kind] for kind in ("length", "area", "volume", "angle") if kind in result}
 
 
 async def _layers(port: int) -> dict[str, Any]:
-    headers = await _read(
+    headers = await call_and_collect(
         "attributes_get_attributes_by_type", {"port": port, "params": {"attributeType": "Layer"}}, "attributes"
     )
-    details = await _read(
+    details = await call_and_collect(
         "attributes_get_layers",
         {
             "port": port,
@@ -81,17 +71,19 @@ async def _layers(port: int) -> dict[str, Any]:
 
 
 async def _classification_systems(port: int) -> list[dict[str, Any]]:
-    systems = await _read("classifications_get_all_classification_systems", {"port": port}, "classificationSystems")
+    systems = await call_and_collect(
+        "classifications_get_all_classification_systems", {"port": port}, "classificationSystems"
+    )
     return [{"name": system.get("name"), "version": system.get("version")} for system in systems]
 
 
 async def _geo_location(port: int) -> dict[str, Any]:
-    location = await _read("project_get_geo_location", {"port": port}, "projectLocation")
+    location = await _field("project_get_geo_location", {"port": port}, "projectLocation")
     return location if isinstance(location, dict) else {}
 
 
 async def _project_info(port: int) -> dict[str, str]:
-    fields = await _read("project_get_project_info_fields", {"port": port}, "fields")
+    fields = await call_and_collect("project_get_project_info_fields", {"port": port}, "fields")
     return {field["projectInfoName"]: field["projectInfoValue"] for field in fields if field.get("projectInfoValue")}
 
 
@@ -114,7 +106,7 @@ async def _project_info(port: int) -> dict[str, str]:
 )
 async def archicad_project_overview(port: int | None = None, include_private: bool = False) -> dict[str, Any]:
     target_port = port or 19723
-    instance = _build_ready_instance(target_port, _get_header(target_port)).model_dump(by_alias=True)
+    instance = ready_instance(target_port).model_dump(by_alias=True)
     overview: dict[str, Any] = {
         "project": {
             "name": instance["projectName"],
