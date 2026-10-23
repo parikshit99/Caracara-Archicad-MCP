@@ -84,6 +84,16 @@
   .hero .eyebrow { color: var(--accent); font-weight: 600; font-size: 0.9rem; letter-spacing: 0.02em; margin: 0 0 12px; }
   .hero h1 { font-size: clamp(2rem, 5vw, 3.1rem); line-height: 1.12; letter-spacing: -0.02em; margin: 0 0 18px; max-width: 18ch; }
   .hero p.lede { font-size: 1.15rem; color: var(--muted); max-width: 60ch; margin: 0 0 28px; }
+  .hero-grid { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 48px; align-items: center; }
+  .hero-copy { grid-column: 1; grid-row: 1; min-width: 0; }
+  .hero-art { grid-column: 2; grid-row: 1; width: clamp(240px, 30vw, 340px); height: auto; filter: drop-shadow(0 12px 28px rgb(0 0 0 / 0.18)); }
+  @media (prefers-color-scheme: dark) { .hero-art { border-radius: 50%; box-shadow: 0 0 0 1px rgb(255 255 255 / 0.12); } }
+  @media (max-width: 760px) {
+    .hero { padding-top: 40px; }
+    .hero-grid { grid-template-columns: 1fr; gap: 20px; }
+    .hero-art, .hero-copy { grid-column: 1; grid-row: auto; }
+    .hero-art { width: 132px; }
+  }
 
   .actions { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
   .btn {
@@ -163,7 +173,9 @@
 
 <main>
   <div class="hero">
-    <div class="wrap">
+    <div class="wrap hero-grid">
+      <img class="hero-art" src="logo-768.webp" alt="Caracara logo: a crested caracara" width="768" height="768">
+      <div class="hero-copy">
       <p class="eyebrow">MCP server for Archicad</p>
       <h1>Let your AI assistant work in Archicad.</h1>
       <p class="lede">Caracara connects Claude and other MCP clients to running Archicad projects. Ask in plain language to find, inspect, change or export elements, and it drives Archicad through the Tapir add-on and the official JSON API.</p>
@@ -178,6 +190,7 @@
         </a>
       </div>
       <p class="release-note" id="release-note">Stable release, installs as a one-click MCP Bundle.</p>
+      </div>
     </div>
   </div>
 
