@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import time
 from typing import Any
 
 from mcp.server.mcpserver.exceptions import ToolError
@@ -40,6 +41,9 @@ from caracara_archicad_mcp.tools.tool_registry import (
 from caracara_archicad_mcp.validation_errors import summarize_validation_error
 
 log = logging.getLogger()
+
+# How long call_and_wait keeps waiting for Archicad before giving up.
+JOB_WAIT_LIMIT_SECONDS = 600.0
 
 
 @mcp.tool(
@@ -369,3 +373,23 @@ async def archicad_get_job(job_handle: str | None = None) -> dict:
     job = store.get(job_handle)
     await store.wait(job)
     return store.response(job)
+
+
+def is_running(result: Any) -> bool:
+    """True when archicad_call_tool returned a job handle because Archicad is still working."""
+    return isinstance(result, dict) and result.get("status") == "running" and "jobHandle" in result
+
+
+async def call_and_wait(name: str, arguments: dict, limit_seconds: float = JOB_WAIT_LIMIT_SECONDS) -> Any:
+    """archicad_call_tool for callers that need the answer itself, waiting while Archicad works."""
+    result = await archicad_call_tool(name, arguments)
+    deadline = time.monotonic() + limit_seconds
+    while is_running(result):
+        if time.monotonic() > deadline:
+            raise ToolError("Archicad is still working on it; try again with fewer elements.")
+        response = await archicad_get_job(result["jobHandle"])
+        if response["status"] == "failed":
+            raise ToolError(f"Archicad could not answer: {response.get('error')}")
+        if response["status"] == "completed":
+            result = response["result"]
+    return result
