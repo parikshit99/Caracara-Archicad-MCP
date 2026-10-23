@@ -37,8 +37,8 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/parikshit99/caracara-archicad"
-"Bug Tracker" = "https://github.com/parikshit99/caracara-archicad/issues"
+Homepage = "https://github.com/parikshit99/Caracara-Archicad-MCP"
+"Bug Tracker" = "https://github.com/parikshit99/Caracara-Archicad-MCP/issues"
 "Upstream Repository" = "https://github.com/SzamosiMate/tapir-archicad-MCP"
 
 [project.scripts]
