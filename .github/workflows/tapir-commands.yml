@@ -1,0 +1,72 @@
+name: Tapir command check
+
+# Compares Tapir's command list with the commands we wrap and keeps one issue up to date:
+# opened when Tapir has something we do not, closed again once we are back in sync.
+on:
+  schedule:
+    # Mondays 03:30 UTC (09:00 IST).
+    - cron: "30 3 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: tapir-commands
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  check:
+    name: Compare with Tapir's command list
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TITLE: "Tapir command check: our command list differs from Tapir's"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.13"
+          enable-cache: true
+      - run: uv sync --locked
+      - name: Compare command lists
+        id: compare
+        run: |
+          STATUS=0
+          uv run --locked python scripts/check_tapir_commands.py --report "$RUNNER_TEMP/report.md" || STATUS=$?
+          echo "status=$STATUS" >> "$GITHUB_OUTPUT"
+          cat "$RUNNER_TEMP/report.md" >> "$GITHUB_STEP_SUMMARY"
+      - name: Update the tracking issue
+        env:
+          STATUS: ${{ steps.compare.outputs.status }}
+        # Comments only when the findings change, so a repeated weekly result stays quiet.
+        run: |
+          NUMBER=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --search "\"$TITLE\" in:title" \
+            --json number,title --jq "map(select(.title == env.TITLE))[0].number // empty")
+          RUN_LINK="[workflow run]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID)"
+          if [[ "$STATUS" == "0" ]]; then
+            if [[ -n "$NUMBER" ]]; then
+              gh issue close "$NUMBER" --repo "$GITHUB_REPOSITORY" \
+                --comment "Back in sync with Tapir: every Tapir command is wrapped or left out on purpose. Closed by the $RUN_LINK."
+            fi
+            exit 0
+          fi
+          { cat "$RUNNER_TEMP/report.md"; echo; echo "_Updated weekly by the $RUN_LINK. Closes itself once resolved._"; } \
+            > "$RUNNER_TEMP/body.md"
+          # Compare without the footer, whose run link changes every week.
+          findings() { grep -v '^_Updated weekly by the' | sed -e 's/[[:space:]]*$//' -e '/^$/d'; }
+          if [[ -z "$NUMBER" ]]; then
+            gh issue create --repo "$GITHUB_REPOSITORY" --title "$TITLE" --body-file "$RUNNER_TEMP/body.md"
+          elif ! diff -q <(gh issue view "$NUMBER" --repo "$GITHUB_REPOSITORY" --json body --jq .body | findings) \
+                         <(findings < "$RUNNER_TEMP/body.md") >/dev/null; then
+            gh issue edit "$NUMBER" --repo "$GITHUB_REPOSITORY" --body-file "$RUNNER_TEMP/body.md"
+            gh issue comment "$NUMBER" --repo "$GITHUB_REPOSITORY" --body "The findings changed; see the updated description. $RUN_LINK"
+          fi
+          # A check that could not run fails the workflow too, so GitHub also emails about it.
+          [[ "$STATUS" != "2" ]]

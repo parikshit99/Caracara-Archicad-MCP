@@ -203,6 +203,7 @@ Do not edit `src/caracara_archicad_mcp/tools/generated/` by hand: CI regenerates
 -   **Every push and pull request to `master`** runs lint and format checks, a lock-file check, a check that generated tools match the generator, a `pip-audit` vulnerability audit of the locked dependencies, tests with at least 85% coverage on Windows, macOS and Linux with Python 3.12–3.14, and a package and MCPB bundle build.
 -   **Weekly build** (Fridays 03:30 UTC): when `master` has changed, runs the same gates and replaces the rolling [`weekly`](https://github.com/parikshit99/Caracara-Archicad-MCP/releases/tag/weekly) pre-release.
 -   **Monthly stable release** (first Friday, 04:30 UTC): when `master` has changed, runs the gates, bumps the date-based version in `pyproject.toml`, `manifest.json` and `uv.lock`, tags it, and publishes a GitHub release with the wheel, sdist and `.mcpb` bundle.
+-   **Tapir command check** (Mondays 03:30 UTC): compares Tapir's latest release and `master` branch with the commands this server wraps or leaves out on purpose (`scripts/check_tapir_commands.py`). When Tapir has a command we lack, or drops one we call, it opens an issue and keeps it updated; the issue closes itself once we are back in sync.
 -   **Dependabot** opens weekly grouped updates for Python dependencies and GitHub Actions.
 
 ---
