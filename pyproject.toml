@@ -80,6 +80,9 @@ select = [
     "BLE",      # blind except
     "LOG",      # logging misuse
     "RUF",      # ruff-specific
+    "C901",     # function complexity (REVIEW.md R7)
+    "ERA",      # commented-out code (REVIEW.md R8)
+    "T20",      # print in place of logging (REVIEW.md R8)
 ]
 # Generated modules are pure generator output; regenerate rather than hand-fix them.
 exclude = ["src/caracara_archicad_mcp/tools/generated/**"]
@@ -92,8 +95,13 @@ exclude = ["src/caracara_archicad_mcp/tools/generated/**"]
 "src/caracara_archicad_mcp/tools/__init__.py" = ["F401"]
 # Long lines here are templates of generated code.
 "scripts/generate_tools.py" = ["E501"]
+# Command-line scripts report to the terminal.
+"scripts/**" = ["T20"]
 # Fixture-style defaults and nested context managers read better in tests.
 "tests/**" = ["B008", "SIM117"]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 12
 
 [tool.ruff.format]
 indent-style = "space"
