@@ -6,6 +6,8 @@ A personal, experimental fork of [tapir-archicad-MCP](https://github.com/Szamosi
 [![CI](https://github.com/parikshit99/Caracara-Archicad-MCP/actions/workflows/test.yml/badge.svg?branch=master)](https://github.com/parikshit99/Caracara-Archicad-MCP/actions/workflows/test.yml)
 [![Latest release](https://img.shields.io/github/v/release/parikshit99/Caracara-Archicad-MCP)](https://github.com/parikshit99/Caracara-Archicad-MCP/releases/latest)
 
+**Website:** https://parikshit99.github.io/Caracara-Archicad-MCP/
+
 > **Note:** This is a downstream, fast-moving fork of [SzamosiMate/tapir-archicad-MCP](https://github.com/SzamosiMate/tapir-archicad-MCP) maintained for custom workflows and experimental Archicad tool bindings. All core credit belongs to Máté Szamosi. If you need the stable upstream release, visit the original repository.
 
 The server is a bridge that lets AI agents and applications (Claude Desktop, Claude Code, Gemini CLI and other MCP clients) work with running Archicad instances. It wraps both the community **Tapir API** and the **official Archicad JSON API**: **351 commands** (302 Tapir + 49 official), generated from the schemas published by [`multiconn_archicad`](https://github.com/SzamosiMate/multiconn_archicad).
