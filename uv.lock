@@ -48,7 +48,7 @@ wheels = [
 
 [[package]]
 name = "caracara-archicad-mcp"
-version = "2026.10.0"
+version = "2026.10.1"
 source = { editable = "." }
 dependencies = [
     { name = "mcp" },
