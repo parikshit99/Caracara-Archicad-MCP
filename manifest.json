@@ -40,7 +40,8 @@
         "caracara-server"
       ],
       "env": {
-        "CARACARA_MCP_READ_ONLY": "${user_config.read_only}"
+        "CARACARA_MCP_READ_ONLY": "${user_config.read_only}",
+        "CARACARA_MCP_ALLOW_IMAGES": "${user_config.allow_images}"
       }
     }
   },
@@ -49,6 +50,13 @@
       "type": "boolean",
       "title": "Read-only mode",
       "description": "Let the AI look at your projects but never change, delete, save or export anything.",
+      "default": false,
+      "required": false
+    },
+    "allow_images": {
+      "type": "boolean",
+      "title": "Allow pictures of the design",
+      "description": "Let the AI take screenshots of Archicad to check its work. The pictures are sent to your AI provider, like everything else the AI reads. Off by default.",
       "default": false,
       "required": false
     }

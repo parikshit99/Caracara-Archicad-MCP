@@ -38,6 +38,7 @@ The server is a bridge that lets AI agents and applications (Claude Desktop, Cla
 | `archicad_mutate` | Changes the elements of a `setId` (or an explicit element list), as one Undo step per call. Actions: `set_property`, `move`, `rotate`, `set_details`, `highlight`, `delete`. Elements that cannot be changed are reported in `failedElements`. `dry_run=true` previews the change without making it; a delete that would also remove hosted doors or windows needs `confirm=true`. |
 | `archicad_calculate` | Runs one read-only SQL `SELECT` over a `setId` (or element list). Table `elements` has one row per element (`guid`, `element_id`, `type`, `story_index`, `story`, `layer` and Archicad's quantities such as `volume`, `gross_volume`, `length`, `area`); table `components` has one row per building-material skin (`material`, `volume`, `projected_area`, `is_core`, `is_finish`, plus the element's type, story and layer). Units are meters, square meters and cubic meters. Without `sql` it lists the available columns. |
 | `archicad_project_overview` | Returns, in one read-only call, what an agent needs before working: Archicad and Tapir versions, project name and type, stories (index, name, level, height), calculation units, north direction, layers (with which are locked or hidden) and classification systems. The file path, geographic location and Project Info fields (client, address, ...) are only included with `include_private=true`. |
+| `archicad_capture_view` | **Off by default; offered only when the user allows images.** Returns a picture so the agent can check its work: the Archicad window currently in front (optionally the entire 2D drawing), or a 3D, 2D or section preview of one element. Pictures of the design go to the AI provider, which is why the user has to switch this on. |
 | `archicad_list_commands` | Lists all 351 command names with short descriptions. |
 | `archicad_get_command_schema` | Returns the JSON schema of one command's arguments. |
 | `archicad_call_tool` | Runs any command by name, after validating its arguments against the schema. |
@@ -134,6 +135,7 @@ The server is configured with CLI flags or environment variables. Each variable 
 | `--job-ttl-seconds` | `CARACARA_MCP_JOB_TTL_SECONDS` | `86400` | Seconds to keep finished jobs; `0` disables time-based expiry |
 | `--max-completed-jobs` | `CARACARA_MCP_MAX_COMPLETED_JOBS` | `128` | Maximum number of finished jobs to keep |
 | `--read-only` | `CARACARA_MCP_READ_ONLY` | off | Refuse every command that could change the project, files or Teamwork state; reading, highlighting and dry runs still work |
+| `--allow-images` | `CARACARA_MCP_ALLOW_IMAGES` | off | Offer `archicad_capture_view`, which sends pictures of the design to the AI provider. When off, the tool is not offered at all |
 
 Paths Archicad only reads (opening a project, importing BCF) are not confined, so they can reach your existing files.
 
