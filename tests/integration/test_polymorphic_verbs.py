@@ -338,3 +338,35 @@ async def test_archicad_query_by_type_is_not_rerouted_by_unrelated_filter_keys(f
 
     assert res["count"] == 1
     assert fake_archicad.calls == [("GetElementsByType", {"elementType": "Wall", "filters": ["IsEditable"]})]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("target", "expected"),
+    [
+        ("walls", "Wall"),
+        ("Curtain_Walls", "CurtainWall"),
+        ("polyline", "PolyLine"),
+        ("meshes", "Mesh"),
+        ("skylights", "Skylight"),
+    ],
+)
+async def test_archicad_query_accepts_everyday_type_names(fake_archicad, target, expected):
+    fake_archicad.on_tapir_command("GetElementsByType", {"elements": []})
+
+    res = await archicad_query(target=target, port=fake_archicad.port)
+
+    assert res["elementType"] == expected
+    assert fake_archicad.calls[-1] == ("GetElementsByType", {"elementType": expected})
+
+
+@pytest.mark.asyncio
+async def test_archicad_query_reports_field_names_no_element_has(fake_archicad):
+    walls = [{"elementId": {"guid": "00000000-0000-0000-0000-000000000001"}}]
+    fake_archicad.on_tapir_command("GetElementsByType", {"elements": walls})
+    fake_archicad.on_tapir_command("GetDetailsOfElements", {"detailsOfElements": [{"id": "W-1", "floorIndex": 0}]})
+
+    res = await archicad_query(target="Wall", output=["id", "storyIndex", "layer_index"], port=fake_archicad.port)
+
+    assert res["details"] == [{"id": "W-1", "storyIndex": 0}]
+    assert res["unknownFields"] == ["layer_index"]

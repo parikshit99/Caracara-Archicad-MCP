@@ -78,16 +78,6 @@ class CommandSchema(BaseModel):
     )
 
 
-class SetReceipt(BaseModel):
-    """Compact summary receipt returned by element queries instead of raw GUID arrays."""
-
-    model_config = ConfigDict(populate_by_name=True)
-
-    set_id: str = Field(alias="setId", description="Opaque token handle referencing the stored element set.")
-    count: int = Field(description="The number of elements in the set.")
-    element_type: str = Field(alias="elementType", description="The type or category of elements in the set.")
-
-
 class HighlightElementsInput(BaseModel):
     """Parameters for highlighting elements, supporting targetSetId or explicit elements."""
 
