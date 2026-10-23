@@ -13,31 +13,38 @@ class BearerTokenMiddleware:
         self.token = token
 
     async def __call__(self, scope, receive, send):
-        if scope["type"] != "http":
+        # Server startup and shutdown messages carry no request to check.
+        if scope["type"] == "lifespan":
             await self.app(scope, receive, send)
             return
 
         headers = dict(scope.get("headers", []))
-        authorization = headers.get(b"authorization", b"").decode("latin-1")
-        expected = f"Bearer {self.token}"
+        # Compared as bytes, so a header with any characters is simply wrong rather than an error.
+        authorization = headers.get(b"authorization", b"")
+        expected = f"Bearer {self.token}".encode()
 
-        if not hmac.compare_digest(authorization, expected):
-            await send(
-                {
-                    "type": "http.response.start",
-                    "status": 401,
-                    "headers": [
-                        (b"content-type", b"application/json"),
-                        (b"www-authenticate", b"Bearer"),
-                    ],
-                }
-            )
-            await send(
-                {
-                    "type": "http.response.body",
-                    "body": b'{"error": "Unauthorized: missing or invalid bearer token."}',
-                }
-            )
+        if hmac.compare_digest(authorization, expected):
+            await self.app(scope, receive, send)
             return
 
-        await self.app(scope, receive, send)
+        if scope["type"] == "websocket":
+            # Closing before accepting refuses the connection (HTTP 403).
+            await send({"type": "websocket.close", "code": 1008})
+            return
+
+        await send(
+            {
+                "type": "http.response.start",
+                "status": 401,
+                "headers": [
+                    (b"content-type", b"application/json"),
+                    (b"www-authenticate", b"Bearer"),
+                ],
+            }
+        )
+        await send(
+            {
+                "type": "http.response.body",
+                "body": b'{"error": "Unauthorized: missing or invalid bearer token."}',
+            }
+        )

@@ -180,3 +180,55 @@ def test_http_transport_without_token_stays_unwrapped(monkeypatch, mock_run_targ
         transport="streamable-http", host="127.0.0.1", port=8000, streamable_http_path="/mcp"
     )
     mock_uvicorn_run.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_token_with_any_characters_is_rejected_cleanly():
+    """A header the token does not match is a 401, whatever characters it contains, never a server error."""
+    async with make_client("secret") as client:
+        response = await client.get("/mcp", headers={"Authorization": "Bearer sécret".encode()})
+
+    assert response.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_websocket_without_token_is_refused():
+    reached = []
+
+    async def app(scope, receive, send):
+        reached.append(scope["type"])
+
+    sent = []
+
+    async def send(message):
+        sent.append(message)
+
+    await BearerTokenMiddleware(app, "secret")({"type": "websocket", "headers": []}, None, send)
+
+    assert reached == []
+    assert sent == [{"type": "websocket.close", "code": 1008}]
+
+
+@pytest.mark.asyncio
+async def test_websocket_with_token_passes_through():
+    reached = []
+
+    async def app(scope, receive, send):
+        reached.append(scope["type"])
+
+    scope = {"type": "websocket", "headers": [(b"authorization", b"Bearer secret")]}
+    await BearerTokenMiddleware(app, "secret")(scope, None, None)
+
+    assert reached == ["websocket"]
+
+
+@pytest.mark.asyncio
+async def test_lifespan_needs_no_token():
+    reached = []
+
+    async def app(scope, receive, send):
+        reached.append(scope["type"])
+
+    await BearerTokenMiddleware(app, "secret")({"type": "lifespan"}, None, None)
+
+    assert reached == ["lifespan"]
