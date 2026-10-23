@@ -324,6 +324,22 @@ def test_granular_tools_deprecated_in_fastmcp():
 
 
 @pytest.mark.asyncio
+async def test_archicad_query_by_type_is_not_rerouted_by_unrelated_filter_keys(fake_archicad):
+    """A type query stays a type query; FilterElements has no 'criterias', so rerouting there always failed."""
+    walls = [{"elementId": {"guid": "00000000-0000-0000-0000-000000000001"}}]
+    fake_archicad.on_tapir_command("GetElementsByType", {"elements": walls})
+
+    res = await archicad_query(
+        target="Wall",
+        filter={"filters": ["IsEditable"], "criterias": [{"layer": "A"}], "elements": walls},
+        port=fake_archicad.port,
+    )
+
+    assert res["count"] == 1
+    assert fake_archicad.calls == [("GetElementsByType", {"elementType": "Wall", "filters": ["IsEditable"]})]
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("target", "expected"),
     [
