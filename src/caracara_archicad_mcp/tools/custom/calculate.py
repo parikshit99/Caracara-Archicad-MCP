@@ -43,6 +43,9 @@ COMPONENT_COLUMNS = {
     "is_core": "INTEGER",
     "is_finish": "INTEGER",
 }
+# Archicad lists the building materials of a column or beam twice: on the element itself and on each
+# of its segments. The segments are kept, since they can differ in material.
+SEGMENT_OWNERS = {"ColumnSegment": "Column", "BeamSegment": "Beam"}
 
 
 async def _names(port: int, warnings: list[str]) -> tuple[dict[int, str], dict[int, str], dict[str, str]]:
@@ -109,8 +112,11 @@ async def _load_tables(ids: list[dict[str, Any]], port: int, warnings: list[str]
         }
         row = {**common, "element_id": detail.get("id")}
         for name, value in (quantity.get("quantities") or {}).items():
-            if isinstance(value, bool | int | float):
+            if isinstance(value, bool):
                 row[snake_case(name)] = value
+            elif isinstance(value, int | float):
+                # Measurements are real numbers even when Archicad sends a whole one (60 for a 60 m² slab).
+                row[snake_case(name)] = float(value)
         element_rows.append(row)
         for component in quantity.get("composites") or []:
             material_guid = (component.get("buildingMaterialId") or {}).get("attributeId", {}).get("guid")
@@ -126,8 +132,25 @@ async def _load_tables(ids: list[dict[str, Any]], port: int, warnings: list[str]
             )
     return [
         Table("elements", _typed_columns(ELEMENT_COLUMNS, element_rows), element_rows),
-        Table("components", COMPONENT_COLUMNS, component_rows),
+        Table("components", COMPONENT_COLUMNS, _without_doubled_owners(component_rows, warnings)),
     ]
+
+
+def _without_doubled_owners(rows: list[dict[str, Any]], warnings: list[str]) -> list[dict[str, Any]]:
+    """Leave out the material rows of columns and beams whose segments are in the set too."""
+    types = {row["type"] for row in rows}
+    doubled = {owner for segment, owner in SEGMENT_OWNERS.items() if segment in types and owner in types}
+    if not doubled:
+        return rows
+    warnings.append(
+        f"'components' has no rows for {', '.join(sorted(doubled))} elements: their building materials are "
+        "counted on their segments, which are in the set too."
+    )
+    return [row for row in rows if row["type"] not in doubled]
+
+
+def _available(tables: list[Table]) -> dict[str, list[str]]:
+    return {table.name: list(table.columns) for table in tables}
 
 
 @mcp.tool(
@@ -140,6 +163,9 @@ async def _load_tables(ids: list[dict[str, Any]], port: int, warnings: list[str]
         "Archicad's quantities such as volume, gross_volume, length, area, height; columns depend on the "
         "element types) and 'components' (one row per building material skin: guid, type, story_index, story, "
         "layer, material, volume, projected_area, is_core, is_finish). "
+        "Slabs have their area in top_surface and bottom_surface, not in area. Zones hold the room's air "
+        "volume and floor area, so leave type 'Zone' out when adding up building volumes. A column's or beam's "
+        "volume is on its ColumnSegment or BeamSegment rows. "
         f"{UNITS} Call without sql to list the columns that exist for this set. "
         "Example: SELECT story, type, ROUND(SUM(volume), 2) AS m3 FROM elements GROUP BY story, type. "
         "The data stays on this computer in a temporary in-memory database; only the query result is returned."
@@ -174,7 +200,9 @@ async def archicad_calculate(
         try:
             response = await asyncio.to_thread(run_query, tables, sql)
         except CalculationError as error:
-            raise ToolError(f"{error} Available tables: {describe(tables)}") from None
+            # Only a wrong table or column name needs the list of what exists.
+            names = f" Available tables: {_available(tables)}" if "no such" in str(error) else ""
+            raise ToolError(f"{error}{names}") from None
     if warnings:
         response["warnings"] = warnings
     return response

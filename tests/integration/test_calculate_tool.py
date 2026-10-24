@@ -163,15 +163,58 @@ async def test_large_sets_are_read_across_pages(fake_archicad, model):
 @pytest.mark.asyncio
 async def test_bad_sql_explains_and_lists_the_tables(fake_archicad, model):
     targets = [_add(model, 1, "Wall", 0, {"volume": 1.5})]
-    with pytest.raises(ToolError, match=r"no such column: weight.*Available tables"):
+    with pytest.raises(ToolError, match=r"no such column: weight.*Available tables: \{'elements': \['guid'"):
         await archicad_calculate(targets, "SELECT SUM(weight) FROM elements", port=fake_archicad.port)
 
 
 @pytest.mark.asyncio
 async def test_writes_are_refused(fake_archicad, model):
     targets = [_add(model, 1, "Wall", 0, {"volume": 1.5})]
-    with pytest.raises(ToolError, match="read-only SELECT"):
+    with pytest.raises(ToolError, match="read-only SELECT") as refusal:
         await archicad_calculate(targets, "DELETE FROM elements", port=fake_archicad.port)
+    # The column list only helps with a wrong name; here it would just cost context.
+    assert "Available tables" not in str(refusal.value)
+
+
+@pytest.mark.asyncio
+async def test_column_materials_are_counted_once_with_their_segments(fake_archicad, model):
+    targets = [
+        _add(model, 1, "Column", 0, {"coreVolume": 0.27}, [(CONCRETE, 0.27)]),
+        _add(model, 2, "ColumnSegment", 0, {"volume": 0.27}, [(CONCRETE, 0.27)]),
+    ]
+
+    result = await archicad_calculate(
+        targets, "SELECT type, material, SUM(volume) FROM components GROUP BY type, material", port=fake_archicad.port
+    )
+
+    assert result["rows"] == [["ColumnSegment", "Concrete", 0.27]]
+    assert any("counted on their segments" in warning for warning in result["warnings"])
+
+
+@pytest.mark.asyncio
+async def test_columns_without_their_segments_keep_their_materials(fake_archicad, model):
+    targets = [_add(model, 1, "Column", 0, {"coreVolume": 0.27}, [(CONCRETE, 0.27)])]
+
+    result = await archicad_calculate(
+        targets, "SELECT type, SUM(volume) FROM components GROUP BY type", port=fake_archicad.port
+    )
+
+    assert result["rows"] == [["Column", 0.27]]
+    assert "warnings" not in result
+
+
+@pytest.mark.asyncio
+async def test_whole_number_quantities_are_real_numbers(fake_archicad, model):
+    targets = [
+        _add(model, 1, "Slab", 0, {"topSurface": 60, "volume": 18}),
+        _add(model, 2, "Slab", 0, {"topSurface": 12.5, "volume": 3.75}),
+    ]
+
+    result = await archicad_calculate(targets, port=fake_archicad.port)
+    total = await archicad_calculate(targets, "SELECT SUM(top_surface) / 2 FROM elements", port=fake_archicad.port)
+
+    assert result["tables"]["elements"]["columns"]["top_surface"] == "REAL"
+    assert total["rows"] == [[36.25]]
 
 
 @pytest.mark.asyncio
