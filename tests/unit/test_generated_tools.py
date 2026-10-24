@@ -244,6 +244,19 @@ async def test_nested_command_parameter_extras_are_rejected_before_transport(fak
     assert fake_archicad.calls == []
 
 
+async def test_bulk_validation_error_is_grouped_and_omits_input(fake_archicad, caplog):
+    slabs = [{"level": "secret-level"} for _ in range(500)]
+
+    with pytest.raises(ToolError) as raised:
+        await archicad_call_tool("elements_create_slabs", {"port": fake_archicad.port, "params": {"slabsData": slabs}})
+
+    message = str(raised.value)
+    assert "secret-level" not in message
+    assert "secret-level" not in caplog.text
+    assert len(message.splitlines()) <= 8
+    assert fake_archicad.calls == []
+
+
 async def test_raw_archicad_error_payload_is_preserved(fake_archicad):
     """
     A fake transport can return an error-shaped payload directly. The MCP
@@ -262,9 +275,10 @@ async def test_raw_archicad_error_payload_is_preserved(fake_archicad):
 
 async def test_unknown_port_is_rejected(fake_archicad):
     """Targeting a port that is not active must fail with a clear error."""
-    with pytest.raises(ToolError, match="19999"):
+    with pytest.raises(ToolError, match="at port") as raised:
         await archicad_call_tool("elements_get_selected_elements", {"port": 19999})
 
+    assert "19999" not in str(raised.value)
     assert fake_archicad.calls == []
 
 

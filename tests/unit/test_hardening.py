@@ -12,7 +12,6 @@ from mcp.server.mcpserver.exceptions import ToolError
 from multiconn_archicad import Port
 from multiconn_archicad.clients.core.core_commands import CoreCommands
 from multiconn_archicad.models.tapir.commands import IFCFileOperationParameters, OpenProjectParameters
-from pydantic import BaseModel, ValidationError
 
 from caracara_archicad_mcp import file_paths
 from caracara_archicad_mcp.context import multi_conn_instance
@@ -22,7 +21,6 @@ from caracara_archicad_mcp.tools import overrides
 from caracara_archicad_mcp.tools.custom import meta_verbs
 from caracara_archicad_mcp.tools.custom.functions import archicad_call_tool
 from caracara_archicad_mcp.tools.custom.meta_verbs import archicad_mutate, archicad_query
-from caracara_archicad_mcp.validation_errors import group_validation_errors, summarize_validation_error
 
 SRC = Path(__file__).resolve().parents[2] / "src"
 ALIVE = "11111111-1111-1111-1111-111111111111"
@@ -276,30 +274,6 @@ async def test_query_ids_output_is_capped(monkeypatch):
 # --- Error sanitization and field pruning ---------------------------------------
 
 
-class _Item(BaseModel):
-    height: float
-
-
-class _Batch(BaseModel):
-    items: list[_Item]
-
-
-def test_validation_errors_are_grouped_by_type_and_field():
-    with pytest.raises(ValidationError) as caught:
-        _Batch.model_validate({"items": [{"height": "tall"}] * 42 + [{}]})
-
-    groups = group_validation_errors(caught.value)
-    assert groups[0] == {
-        "error": "float_parsing",
-        "field": "items.*.height",
-        "message": groups[0]["message"],
-        "occurrences": 42,
-        "input": "tall",
-    }
-    assert groups[1]["error"] == "missing"
-    assert len(summarize_validation_error(caught.value)) < 400
-
-
 def test_projection_ignores_missing_fields_and_keeps_element_errors():
     payload = {
         "detailsOfElements": [
@@ -427,13 +401,14 @@ def test_confined_path_creates_missing_parent_folders(output_root):
 
 @pytest.mark.asyncio
 async def test_invalid_arguments_are_logged_without_their_values(fake_archicad, caplog):
-    """REVIEW.md R13: values the model sent can be project data, so the log names only the fields."""
-    with caplog.at_level("ERROR"), pytest.raises(ToolError, match="CONFIDENTIAL-CLIENT"):
+    """REVIEW.md R13: values the model sent can be project data, so errors and the log name only the fields."""
+    with caplog.at_level("ERROR"), pytest.raises(ToolError, match=r"params\.elementType") as raised:
         await archicad_call_tool(
             "elements_get_elements_by_type",
             {"port": fake_archicad.port, "params": {"elementType": "CONFIDENTIAL-CLIENT"}},
         )
 
+    assert "CONFIDENTIAL-CLIENT" not in str(raised.value)
     logged = " ".join(record.getMessage() for record in caplog.records)
     assert "params.elementType" in logged
     assert "CONFIDENTIAL-CLIENT" not in logged
