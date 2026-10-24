@@ -11,6 +11,7 @@ from typing import Any
 from mcp.server.mcpserver.exceptions import ToolError
 
 from caracara_archicad_mcp.result_registry import ResultRegistry
+from caracara_archicad_mcp.tools.custom.functions import call_and_collect
 
 
 def element_id(elem: Any) -> dict[str, Any] | None:
@@ -36,6 +37,24 @@ def element_ids(elements: list[Any]) -> tuple[list[dict[str, Any]], list[dict[st
         else:
             ids.append(elem_id)
     return ids, invalid
+
+
+async def element_labels(guids: list[str], port: int) -> dict[str, str | None]:
+    """The Element ID shown in Archicad (e.g. 'SW - 005') of each GUID, so results can name elements
+    the way the user knows them; None for an element that no longer exists."""
+    if not guids:
+        return {}
+    details = await call_and_collect(
+        "elements_get_details_of_elements",
+        {"port": port, "params": {"elements": [{"elementId": {"guid": g}} for g in guids], "fields": ["id"]}},
+        "detailsOfElements",
+    )
+    if len(details) != len(guids):
+        raise ToolError("Archicad returned details for a different number of elements than requested.")
+    return {
+        guid: detail.get("id") if isinstance(detail, dict) and "error" not in detail else None
+        for guid, detail in zip(guids, details, strict=True)
+    }
 
 
 def target_elements(target_set: str | list[Any], label: str = "target_set") -> list[Any]:
