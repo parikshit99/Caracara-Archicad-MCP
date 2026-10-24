@@ -66,3 +66,9 @@ for the author and the reviewer.
   README tables and, for settings, `manifest.json`, in the same pull request.
 - **R22 Commit messages say why**, not only what, and pull request descriptions state what
   was verified and what was not (live Archicad behaviour is never verified by CI).
+
+## Upstream
+
+- **R23 Stay close to upstream.** New behaviour goes in new modules; files that came from
+  tapir-archicad-MCP change only where a hook is needed, and are never reformatted or tidied.
+  Where upstream has the same feature, use upstream's. See "Upstream" in CLAUDE.md.

@@ -40,6 +40,30 @@ uv run --locked pytest tests --cov --cov-fail-under=85
 If you change `manifest.json`: `npx --yes @anthropic-ai/mcpb@2.1.2 validate manifest.json`.
 After changing the `multiconn-archicad` pin: `uv run python scripts/generate_tools.py`.
 
+## Upstream
+
+Caracara is a fork of [SzamosiMate/tapir-archicad-MCP](https://github.com/SzamosiMate/tapir-archicad-MCP),
+with its package `tapir_archicad_mcp` renamed to `caracara_archicad_mcp`. We take upstream's
+changes by merging them, so every edit to a file that came from upstream is a future merge
+conflict (R23).
+
+- Put new behaviour in new modules (`meta_verbs.py`, `result_registry.py`, `tools/overrides.py`).
+  In files that came from upstream, change only the lines needed to hook it in.
+- Never reformat, rename or tidy code in files that came from upstream.
+- When upstream adds something Caracara also has, keep upstream's and delete ours.
+- Merge upstream after each upstream release, while the gap is small:
+
+  ```bash
+  git remote add upstream https://github.com/SzamosiMate/tapir-archicad-MCP.git  # once
+  git fetch upstream
+  git merge upstream/master
+  ```
+
+  Git does not always follow the package rename. Move any file the merge adds under
+  `src/tapir_archicad_mcp/` or `tests/` with `tapir_archicad_mcp` imports into the Caracara
+  package and rename its imports; `src/tapir_archicad_mcp/__init__.py` is our compatibility
+  shim and stays. Then run the checks above.
+
 ## How to work
 
 1. **Understand before changing.** Read the module you are changing, its tests, and the
