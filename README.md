@@ -22,6 +22,8 @@ The server is a bridge that lets AI agents and applications (Claude Desktop, Cla
 -   **Pagination.** Large listings are returned 100 items at a time with a `next_page_token`; `archicad_query` follows the pages itself.
 -   **Long-running jobs.** Slow commands return a job handle instead of timing out (see [Long-Running Commands](#long-running-commands)).
 -   **Safer file output.** Paths that Archicad writes to (exports, archives, Save As, screenshots, publishing) are confined to one output directory.
+-   **Safety checks before changes.** Before `archicad_mutate` changes anything, it looks for elements Archicad would skip: elements deleted since the set was found, and elements on a locked layer or not reserved by you in Teamwork. If there are any, nothing is changed and they are listed with their Element IDs until the AI repeats the call with `confirm=true`, so it has to ask first. A delete that would also remove doors, windows, skylights or openings of other elements waits for `confirm=true` the same way. Results give the set's age and how many of its elements no longer exist, because a set does not follow later changes in Archicad. `dry_run=true` returns the same report without changing anything.
+-   **Read-only mode.** With `--read-only` (or the "Read-only mode" switch in the `.mcpb` settings), the AI can look at projects but every command that could change, delete, save or export anything is refused. Commands are allowed by name (`Get…`, `Is…`, `Filter…`, plus highlighting, view refreshes and saving a picture of the window into the output folder for screenshots), so a command added by a future Tapir release stays blocked until it is reviewed.
 -   **Locked-down HTTP transports.** HTTP binds to loopback by default; binding any other address needs `--allow-remote` and a bearer token.
 
 ---
@@ -32,7 +34,7 @@ The server is a bridge that lets AI agents and applications (Claude Desktop, Cla
 | :--- | :--- |
 | `discovery_list_active_archicads` | Lists running Archicad instances with their `port`, and instances that are unresponsive or missing the Tapir add-on. Warns when the installed Tapir version differs from the supported one. |
 | `archicad_query` | Finds elements and reads their metadata. `target` is an element type (`Wall`, `Slab`, `Door`, ...) or `all`, `selected`, `classified`, `filter`. `output` is `set` (default: `setId` and count), `ids` (up to 1,000 element identifiers) or a list of field names. |
-| `archicad_mutate` | Changes the elements of a `setId` (or an explicit element list), as one Undo step per call. Actions: `set_property`, `move`, `rotate`, `set_details`, `highlight`, `delete`. Elements that cannot be changed are reported in `failedElements`. |
+| `archicad_mutate` | Changes the elements of a `setId` (or an explicit element list), as one Undo step per call. Actions: `set_property`, `move`, `rotate`, `set_details`, `highlight`, `delete`. Elements that no longer exist or cannot be changed, and a delete that would also remove hosted doors or windows, hold the change until `confirm=true`; elements Archicad still skips are reported in `failedElements`, with their Element IDs. Results give the set's age (`setAgeSeconds`) and `missingCount`. `dry_run=true` previews the change without making it. |
 | `archicad_capture_view` | **Off by default; offered only when the user allows images.** Returns a picture so the agent can check its work: the Archicad window currently in front (optionally the entire 2D drawing), or a 3D, 2D or section preview of one element. Pictures of the design go to the AI provider, which is why the user has to switch this on. |
 | `archicad_list_commands` | Lists all 351 command names with short descriptions. |
 | `archicad_get_command_schema` | Returns the JSON schema of one command's arguments. |
@@ -130,6 +132,7 @@ The server is configured with CLI flags or environment variables. Each variable 
 | `--job-ttl-seconds` | `CARACARA_MCP_JOB_TTL_SECONDS` | `86400` | Seconds to keep finished jobs; `0` disables time-based expiry |
 | `--max-completed-jobs` | `CARACARA_MCP_MAX_COMPLETED_JOBS` | `128` | Maximum number of finished jobs to keep |
 | `--allow-images` | `CARACARA_MCP_ALLOW_IMAGES` | off | Offer `archicad_capture_view`, which uploads pictures of the design to the AI provider. Pictures help the AI check its work but use more tokens and context. When off, the tool is not offered at all |
+| `--read-only` | `CARACARA_MCP_READ_ONLY` | off | Refuse every command that could change the project, files or Teamwork state; reading, highlighting, window pictures and dry runs still work |
 
 Paths Archicad only reads (opening a project, importing BCF) are not confined, so they can reach your existing files.
 

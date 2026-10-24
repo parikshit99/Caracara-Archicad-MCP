@@ -15,6 +15,7 @@ from caracara_archicad_mcp.file_paths import set_output_root
 from caracara_archicad_mcp.jobs import JobSettings
 from caracara_archicad_mcp.logging_config import setup_logging
 from caracara_archicad_mcp.middleware import BearerTokenMiddleware
+from caracara_archicad_mcp.safety import set_read_only
 from caracara_archicad_mcp.tools.custom.capture import TOOL_NAME as CAPTURE_TOOL
 from caracara_archicad_mcp.tools.custom.capture import set_images_allowed
 
@@ -112,6 +113,12 @@ def parse_args() -> argparse.Namespace:
         help="Directory that files written by Archicad commands are confined to (default: a temp subdirectory).",
     )
     parser.add_argument(
+        "--read-only",
+        action="store_true",
+        default=str(_env("READ_ONLY", "")).lower() in ("1", "true", "yes"),
+        help="Refuse every command that could change the project, files or Teamwork state; only reading is allowed.",
+    )
+    parser.add_argument(
         "--allow-images",
         action="store_true",
         default=str(_env("ALLOW_IMAGES", "")).lower() in ("1", "true", "yes"),
@@ -168,6 +175,9 @@ def main():
     args = parse_args()
     check_bind_host(args)
     set_output_root(args.output_root)
+    set_read_only(args.read_only)
+    if args.read_only:
+        logging.info("Read-only mode: commands that could change the project are refused.")
     configure_images(args.allow_images)
     import caracara_archicad_mcp.app as app_module
 
