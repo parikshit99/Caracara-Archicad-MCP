@@ -100,8 +100,10 @@ async def _element_image(port: int, element: Any, view: str, size: int) -> bytes
     description=(
         "Returns a picture so you can check your work visually. Without 'element' it captures the Archicad "
         "window that is currently in front (floor plan, 3D, section, ...); entire_drawing=true covers the "
-        "whole drawing of a 2D window instead of its current zoom. With 'element' ({'guid': ...}) it returns "
-        "a preview of that one element: view '3D' (default), '2D' or 'Section', size in pixels (default 768). "
+        "whole drawing of a 2D window instead of its current zoom, and changes nothing in a 3D window. With "
+        "'element' ({'guid': ...}) it returns a preview of that one element: view '3D' (default), '2D' or "
+        "'Section', size in pixels (default 768). Pictures are for context only, not for judging exact sizes "
+        "or positions; read those with archicad_query or archicad_calculate. "
         "Pictures of the design are sent to the AI provider; the user enabled this tool for that purpose."
     ),
     annotations=ToolAnnotations(
