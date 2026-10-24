@@ -160,3 +160,12 @@ def test_server_flag_allows_images(monkeypatch):
     assert parse_args().allow_images
     monkeypatch.setattr(sys, "argv", ["server.py"])
     assert not parse_args().allow_images
+
+
+def test_description_keeps_pictures_to_context():
+    """Sizes and positions read from a picture are guesses; the description points to exact readings."""
+    from caracara_archicad_mcp.app import mcp
+
+    tool = mcp._tool_manager.get_tool(capture.TOOL_NAME)
+    assert "context only" in tool.description
+    assert "archicad_calculate" in tool.description
