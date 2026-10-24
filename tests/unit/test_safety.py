@@ -76,8 +76,7 @@ def mutations(fake_archicad) -> list[str]:
         "API.GetAllElements",
         "IsAddOnCommandAvailable",
         "FilterElements",
-        *sorted(safety.DISPLAY_ONLY_COMMANDS),
-        "SaveCurrentWindowAsImage",
+        *sorted(safety.REVIEWED_COMMANDS),
     ],
 )
 def test_reading_and_display_commands_are_read_only(command):
@@ -95,7 +94,7 @@ def test_changing_commands_are_not_read_only(command):
 def test_every_registered_command_is_classified_as_expected(fake_archicad):
     """Guards the allowlist: only Get/Is/Filter commands, the display-only ones and the window picture pass
     in read-only mode."""
-    reviewed = safety.DISPLAY_ONLY_COMMANDS | safety.WINDOW_IMAGE_COMMANDS
+    reviewed = safety.REVIEWED_COMMANDS
     allowed = sorted(
         entry["title"] for entry in TOOL_DISCOVERY_CATALOG.values() if safety.is_read_only_command(entry["title"])
     )

@@ -117,8 +117,8 @@ def fake_archicad():
     fake = FakeArchicad()
     headers = {Port(fake.port): fake}
     multi_conn = SimpleNamespace(
-        refresh=SimpleNamespace(all_ports=Mock()),
-        connect=SimpleNamespace(all=Mock()),
+        refresh=SimpleNamespace(all_ports=Mock(), from_ports=Mock()),
+        connect=SimpleNamespace(all=Mock(), from_ports=Mock()),
         active=headers,
         open_port_headers=headers,
     )

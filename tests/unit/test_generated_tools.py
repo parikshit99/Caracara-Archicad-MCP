@@ -323,13 +323,14 @@ async def test_unknown_port_is_discovered_before_the_call(fake_archicad):
     multi_conn = multi_conn_instance.get()
     known = dict(multi_conn.active)
     multi_conn.active.clear()
-    multi_conn.connect.all.side_effect = lambda: multi_conn.active.update(known)
+    multi_conn.connect.from_ports.side_effect = lambda *ports: multi_conn.active.update(known)
     fake_archicad.on_tapir_command("GetAddOnVersion", {"version": "1.0.0"})
 
     result = await archicad_call_tool("app_get_add_on_version", {"port": fake_archicad.port})
 
     assert result == {"version": "1.0.0"}
-    multi_conn.refresh.all_ports.assert_called_once()
+    multi_conn.refresh.from_ports.assert_called_once_with(Port(fake_archicad.port))
+    multi_conn.refresh.all_ports.assert_not_called()
 
 
 async def test_aliased_parameter_is_sent_under_its_api_name(fake_archicad):
