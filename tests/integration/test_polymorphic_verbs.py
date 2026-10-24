@@ -21,7 +21,6 @@ def clean_registry():
 def every_element_editable(fake_archicad):
     """Changes first check, read-only, that every element still exists and may be changed."""
     fake_archicad.on_tapir_command("FilterElements", lambda params: {"elements": params["elements"]})
-    fake_archicad.on_tapir_command("GetDetailsOfElements", {"detailsOfElements": []})
 
 
 # What a change of a whole, current set reports besides Archicad's own result.
