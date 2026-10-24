@@ -31,6 +31,7 @@ def _clear_http_env(monkeypatch):
             "MAX_COMPLETED_JOBS",
             "ALLOW_REMOTE",
             "OUTPUT_ROOT",
+            "READ_ONLY",
         ):
             monkeypatch.delenv(f"{prefix}{name}", raising=False)
 

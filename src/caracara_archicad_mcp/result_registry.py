@@ -38,6 +38,8 @@ class ResultRegistry:
 
     _counters: ClassVar[dict[str, int]] = {}
     _timestamps: ClassVar[dict[str, float]] = {}
+    # When each set was found; a set does not follow later changes in Archicad.
+    _created: ClassVar[dict[str, float]] = {}
     _lock: ClassVar[threading.RLock] = threading.RLock()
 
     @classmethod
@@ -105,7 +107,7 @@ class ResultRegistry:
             set_id = f"set_{prefix}_{count:02d}"
 
             STORAGE_SETS[set_id] = normalized
-            cls._timestamps[set_id] = time.monotonic()
+            cls._timestamps[set_id] = cls._created[set_id] = time.monotonic()
             return set_id
 
     @classmethod
@@ -149,6 +151,15 @@ class ResultRegistry:
             STORAGE_SETS.clear()
             cls._counters.clear()
             cls._timestamps.clear()
+            cls._created.clear()
+
+    @classmethod
+    def age_seconds(cls, set_id: str) -> float | None:
+        """Seconds since the set was found, or None for an unknown or expired set."""
+        with cls._lock:
+            if not cls._alive(set_id):
+                return None
+            return time.monotonic() - cls._created[set_id]
 
     @classmethod
     def count(cls, set_id: str) -> int:
@@ -180,6 +191,7 @@ class ResultRegistry:
     def _delete_unlocked(cls, set_id: str) -> None:
         STORAGE_SETS.pop(set_id, None)
         cls._timestamps.pop(set_id, None)
+        cls._created.pop(set_id, None)
 
     @classmethod
     def _total_elements(cls) -> int:

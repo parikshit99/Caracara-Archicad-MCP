@@ -1,5 +1,6 @@
 # these are needed to ensure configuration happens before models are loaded
 import json
+from collections.abc import Callable
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import Mock
@@ -47,8 +48,8 @@ class FakeArchicad:
         self.archicad_location = ArchicadLocation(archicadLocation="/Applications/GRAPHISOFT/Archicad 28/ARCHICAD")
         self.archicad_id = SoloProjectID(projectName="FakeProject", projectPath="/path/to/fake_project.pln")
 
-    def on_tapir_command(self, command: str, response: dict) -> None:
-        """Registers the canned response returned for a Tapir command."""
+    def on_tapir_command(self, command: str, response: dict | Callable[[dict | None], dict]) -> None:
+        """Registers the canned response for a Tapir command, or a function of its parameters that builds it."""
         self._canned_responses[command] = response
 
     def _post_tapir_command(self, command: str, parameters: dict | None = None) -> dict:
@@ -58,7 +59,8 @@ class FakeArchicad:
                 f"FakeArchicad received unexpected Tapir command '{command}'. "
                 f"Register a response with on_tapir_command() first."
             )
-        return self._canned_responses[command]
+        response = self._canned_responses[command]
+        return response(parameters) if callable(response) else response
 
 
 class FakeTapirHttp:
