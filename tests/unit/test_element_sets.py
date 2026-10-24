@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 from mcp.server.mcpserver.exceptions import ToolError
 
-from caracara_archicad_mcp.tools.custom.element_sets import element_labels
+from caracara_archicad_mcp.tools.custom.element_sets import element_labels, labels_or_warning
 
 WALL = "00000000-0000-0000-0000-000000000001"
 GONE = "00000000-0000-0000-0000-000000000002"
@@ -43,3 +43,15 @@ async def test_element_labels_refuse_a_misaligned_answer(fake_archicad):
 
     with pytest.raises(ToolError, match="different number of elements"):
         await element_labels([WALL, GONE], fake_archicad.port)
+
+
+@pytest.mark.asyncio
+async def test_labels_or_warning_names_elements_or_says_why_not(fake_archicad):
+    fake_archicad.on_tapir_command("GetDetailsOfElements", {"detailsOfElements": [{"id": "SW - 001"}]})
+    warnings: list[str] = []
+    assert await labels_or_warning([WALL], fake_archicad.port, warnings) == {WALL: "SW - 001"}
+    assert warnings == []
+
+    fake_archicad.on_tapir_command("GetDetailsOfElements", {"error": {"code": 1, "message": "unavailable"}})
+    assert await labels_or_warning([WALL], fake_archicad.port, warnings) == {}
+    assert warnings[0].startswith("Element IDs were not read")

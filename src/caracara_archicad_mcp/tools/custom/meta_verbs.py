@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Awaitable, Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 from mcp.server.mcpserver.exceptions import ToolError
@@ -225,9 +225,6 @@ class _Mutation:
     payload: dict[str, Any] | None
     port: int
     confirm: bool = False
-    # Filled by the check before the change: missing elements counted, and warnings.
-    missing_count: int | None = None
-    warnings: list[str] = field(default_factory=list)
 
     def require_payload(self, action: str, example: str = "") -> dict[str, Any]:
         if not self.payload:
@@ -247,6 +244,7 @@ async def _delete(m: _Mutation) -> Any:
     if not m.confirm and m.element_ids:
         hosted, _ = await hosted_elements(m.element_ids, m.port)
         if hosted:
+            warnings: list[str] = []
             held: dict[str, Any] = {
                 "deleted": False,
                 "needsConfirmation": True,
@@ -255,10 +253,10 @@ async def _delete(m: _Mutation) -> Any:
                     "delete too. Ask the user; if they agree, repeat this call with confirm=true."
                 ),
                 "hostedElementCount": len(hosted),
-                "hostedElements": await label_listed(hosted[:MAX_ITEMIZED_FAILURES], m.port, m.warnings),
+                "hostedElements": await label_listed(hosted[:MAX_ITEMIZED_FAILURES], m.port, warnings),
             }
-            if m.warnings:
-                held["warnings"] = m.warnings
+            if warnings:
+                held["warnings"] = warnings
             return held
     return await m.run("elements_delete_elements", {"elements": m.elements()})
 
@@ -314,23 +312,21 @@ MUTATION_ACTIONS: dict[str, Callable[[_Mutation], Awaitable[Any]]] = {
 }
 
 
-async def _hold_for_skipped(m: _Mutation) -> dict[str, Any] | None:
-    """Stop a change Archicad would apply to only part of the set, so the user decides first."""
-    report, m.warnings = await skipped_elements(m.element_ids, m.port)
-    m.missing_count = report.get("missingCount")
-    skipped = (m.missing_count or 0) + report.get("notEditableCount", 0)
+def _held_for_skipped(report: dict[str, Any], warnings: list[str], total: int) -> dict[str, Any] | None:
+    """The reply that stops a change Archicad would apply to only part of the set, so the user decides first."""
+    skipped = report.get("missingCount", 0) + report.get("notEditableCount", 0)
     if not skipped:
         return None
     return {
         "changed": False,
         "needsConfirmation": True,
         "message": (
-            f"Nothing was changed: Archicad would skip {skipped} of {len(m.element_ids)} elements (see 'missing' "
+            f"Nothing was changed: Archicad would skip {skipped} of {total} elements (see 'missing' "
             "and 'notEditable'). Tell the user. Query again to work on the model as it is now, or, if they agree, "
             "repeat this call with confirm=true to change the other elements."
         ),
         **report,
-        "warnings": m.warnings,
+        "warnings": warnings,
     }
 
 
@@ -340,17 +336,17 @@ def _set_age(target_set: str | list[Any]) -> dict[str, Any]:
     return {"setAgeSeconds": round(age)} if age is not None else {}
 
 
-async def _with_check_results(result: Any, m: _Mutation, set_age: dict[str, Any]) -> Any:
-    """Add the set's age, what the check before the change found, and the Element IDs of failed elements."""
+async def _with_check_results(result: Any, port: int, checked: dict[str, Any]) -> Any:
+    """Add what the check before the change found (set age, missing elements, warnings) and the Element IDs
+    of failed elements."""
     if is_running(result) or not isinstance(result, dict):
         return result
-    extra: dict[str, Any] = dict(set_age)
-    if m.missing_count is not None:
-        extra["missingCount"] = m.missing_count
+    warnings = [*result.get("warnings", []), *checked.get("warnings", [])]
+    extra = {key: value for key, value in checked.items() if key != "warnings"}
     if isinstance(result.get("failedElements"), list):
-        extra["failedElements"] = await label_listed(result["failedElements"], m.port, m.warnings)
-    if m.warnings and "warnings" not in result:
-        extra["warnings"] = m.warnings
+        extra["failedElements"] = await label_listed(result["failedElements"], port, warnings)
+    if warnings:
+        extra["warnings"] = warnings
     return {**result, **extra}
 
 
@@ -425,6 +421,10 @@ async def archicad_mutate(
     mutation = _Mutation(ids, invalid, set_id, payload, target_port, confirm)
     if run_action is _highlight:
         return await run_action(mutation)
-    if not confirm and ids and (held := await _hold_for_skipped(mutation)):
-        return {**held, **_set_age(target_set)}
-    return await _with_check_results(await run_action(mutation), mutation, _set_age(target_set))
+    checked = _set_age(target_set)
+    if not confirm and ids:
+        report, warnings = await skipped_elements(ids, target_port)
+        if held := _held_for_skipped(report, warnings, len(ids)):
+            return {**held, **checked}
+        checked |= {key: report[key] for key in ("missingCount",) if key in report} | {"warnings": warnings}
+    return await _with_check_results(await run_action(mutation), target_port, checked)
