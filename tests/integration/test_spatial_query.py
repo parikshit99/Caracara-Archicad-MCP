@@ -48,7 +48,11 @@ def archicad(fake_archicad):
                 )
         return {"boundingBoxes3D": out}
 
+    def element_ids(params):
+        return {"detailsOfElements": [{"id": f"E-{int(i['elementId']['guid'][-12:])}"} for i in params["elements"]]}
+
     fake_archicad.on_tapir_command("Get3DBoundingBoxes", boxes)
+    fake_archicad.on_tapir_command("GetDetailsOfElements", element_ids)
     yield fake_archicad
     ResultRegistry.clear()
 
@@ -61,7 +65,9 @@ async def test_near_finds_conduits_close_to_walls(archicad):
     assert result["matchedCount"] == 1
     assert ResultRegistry.get(result["matchedSetId"]) == _ids(2)
     assert ResultRegistry.get(result["otherMatchedSetId"]) == _ids(1)
-    assert result["nearest"] == [{"element": {"guid": _guid(2)}, "other": {"guid": _guid(1)}, "gapMeters": 0.2}]
+    assert result["nearest"] == [
+        {"element": {"guid": _guid(2), "id": "E-2"}, "other": {"guid": _guid(1), "id": "E-1"}, "gapMeters": 0.2}
+    ]
 
 
 @pytest.mark.asyncio
@@ -79,6 +85,7 @@ async def test_inside_counts_furniture_per_zone(archicad):
     assert result["outsideCount"] == 1
     assert ResultRegistry.get(result["insideSetId"]) == _ids(20, 21)
     assert sorted(item["container"]["guid"] for item in result["byContainer"]) == [_guid(10), _guid(11)]
+    assert sorted(item["container"]["id"] for item in result["byContainer"]) == ["E-10", "E-11"]
     assert result["withoutBoxCount"] == 1
 
 
@@ -110,7 +117,8 @@ async def test_collides_uses_archicads_exact_check(archicad):
 
     result = await archicad_spatial_query("collides", _ids(2, 3), _ids(1), port=archicad.port)
 
-    assert archicad.calls[-1] == ("GetCollisions", {"elementsGroup1": _ids(2, 3), "elementsGroup2": _ids(1)})
+    assert ("GetCollisions", {"elementsGroup1": _ids(2, 3), "elementsGroup2": _ids(1)}) in archicad.calls
+    assert result["examples"][0]["element"] == {"guid": _guid(2), "id": "E-2"}
     assert result["collisionCount"] == 1
     assert result["bodyCollisionCount"] == 1
     assert ResultRegistry.get(result["matchedSetId"]) == _ids(2)
@@ -119,7 +127,7 @@ async def test_collides_uses_archicads_exact_check(archicad):
 @pytest.mark.asyncio
 async def test_only_reads_reach_archicad(archicad):
     await archicad_spatial_query("near", _ids(1, 2, 3), _ids(1, 2, 3), distance=1.0, port=archicad.port)
-    assert {command for command, _ in archicad.calls} == {"Get3DBoundingBoxes"}
+    assert {command for command, _ in archicad.calls} == {"Get3DBoundingBoxes", "GetDetailsOfElements"}
 
 
 @pytest.mark.asyncio
@@ -130,3 +138,13 @@ async def test_bad_input_is_refused(archicad):
         await archicad_spatial_query("near", [], _ids(2), port=archicad.port)
     with pytest.raises(ToolError, match="not found"):
         await archicad_spatial_query("near", "set_missing_01", _ids(2), port=archicad.port)
+
+
+@pytest.mark.asyncio
+async def test_unread_element_ids_leave_the_answer_usable(archicad):
+    archicad.on_tapir_command("GetDetailsOfElements", {"error": {"code": 1, "message": "unavailable"}})
+
+    result = await archicad_spatial_query("near", _ids(2), _ids(1), distance=0.5, port=archicad.port)
+
+    assert result["nearest"] == [{"element": {"guid": _guid(2)}, "other": {"guid": _guid(1)}, "gapMeters": 0.2}]
+    assert result["warnings"][0].startswith("Element IDs were not read")

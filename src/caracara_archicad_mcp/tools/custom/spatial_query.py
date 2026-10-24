@@ -18,7 +18,7 @@ from mcp.types import ToolAnnotations
 from caracara_archicad_mcp.app import mcp
 from caracara_archicad_mcp.result_registry import ResultRegistry
 from caracara_archicad_mcp.spatial import Box, containers_of, pairs_within
-from caracara_archicad_mcp.tools.custom.element_sets import element_ids, target_elements
+from caracara_archicad_mcp.tools.custom.element_sets import element_ids, element_labels, target_elements
 from caracara_archicad_mcp.tools.custom.functions import call_and_wait
 
 MAX_ELEMENTS = 100_000
@@ -142,6 +142,24 @@ async def _collides(targets: list[dict], others: list[dict], port: int) -> dict[
     }
 
 
+async def _with_element_ids(response: dict[str, Any], port: int) -> dict[str, Any]:
+    """Name the listed elements by their Element ID too, so the user can find them in Archicad."""
+    pairs = response.get("nearest", []) + response.get("examples", [])
+    refs = [ref for pair in pairs for ref in (pair["element"], pair["other"])]
+    refs += [item["container"] for item in response.get("byContainer", [])]
+    if not refs:
+        return response
+    try:
+        labels = await element_labels(sorted({ref["guid"] for ref in refs}), port)
+    except ToolError as error:
+        response["warnings"] = [f"Element IDs were not read: {error}"]
+        return response
+    for ref in refs:
+        if labels.get(ref["guid"]):
+            ref["id"] = labels[ref["guid"]]
+    return response
+
+
 @mcp.tool(
     name="archicad_spatial_query",
     title="Find Elements Near, Inside or Colliding With Others",
@@ -151,7 +169,8 @@ async def _collides(targets: list[dict], others: list[dict], port: int) -> dict[
         "distance meters apart (0 = touching or overlapping), e.g. conduits within 0.5 m of walls. 'inside': "
         "target elements whose bounding-box center lies within an element of other_set, e.g. furniture in zones. "
         "'collides': Archicad's exact check of the real geometry, including MEP clearance zones. "
-        "Returns counts, the nearest pairs or examples, and the matching elements as new setIds."
+        "Returns counts, the nearest pairs or examples (with their Element IDs), and the matching elements as new "
+        "setIds."
     ),
     annotations=ToolAnnotations(
         readOnlyHint=True,
@@ -173,9 +192,11 @@ async def archicad_spatial_query(
     targets = _resolve(target_set, "target_set")
     others = _resolve(other_set, "other_set")
     if relation == "near":
-        return await _near(targets, others, distance, target_port)
-    if relation == "inside":
-        return await _inside(targets, others, target_port)
-    if relation == "collides":
-        return await _collides(targets, others, target_port)
-    raise ToolError("relation must be 'near', 'inside' or 'collides'.")
+        response = await _near(targets, others, distance, target_port)
+    elif relation == "inside":
+        response = await _inside(targets, others, target_port)
+    elif relation == "collides":
+        response = await _collides(targets, others, target_port)
+    else:
+        raise ToolError("relation must be 'near', 'inside' or 'collides'.")
+    return await _with_element_ids(response, target_port)
