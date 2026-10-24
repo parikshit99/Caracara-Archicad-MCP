@@ -15,7 +15,16 @@ from mcp.server.mcpserver.exceptions import ToolError
 from mcp.types import ToolAnnotations
 
 from caracara_archicad_mcp.app import mcp
-from caracara_archicad_mcp.calculation import CalculationError, Table, describe, run_query, snake_case, sqlite_type
+from caracara_archicad_mcp.calculation import (
+    CalculationError,
+    Table,
+    UnknownNameError,
+    column_names,
+    describe,
+    run_query,
+    snake_case,
+    sqlite_type,
+)
 from caracara_archicad_mcp.tools.custom.element_sets import element_ids, target_elements
 from caracara_archicad_mcp.tools.custom.functions import call_and_collect, call_and_wait
 
@@ -82,9 +91,8 @@ def _typed_columns(fixed: dict[str, str], rows: list[dict[str, Any]]) -> dict[st
     return columns
 
 
-async def _load_tables(
-    ids: list[dict[str, Any]], port: int, warnings: list[str], *, reads_components: bool
-) -> list[Table]:
+async def _load_tables(ids: list[dict[str, Any]], port: int, warnings: list[str]) -> tuple[list[Table], str | None]:
+    """The 'elements' and 'components' tables, and a note on column and beam materials when there is one."""
     elements = [{"elementId": elem_id} for elem_id in ids]
     details = await call_and_collect(
         "elements_get_details_of_elements",
@@ -133,12 +141,11 @@ async def _load_tables(
                 }
             )
     component_rows, note = _without_doubled_owners(component_rows)
-    if note and reads_components:
-        warnings.append(note)
-    return [
+    tables = [
         Table("elements", _typed_columns(ELEMENT_COLUMNS, element_rows), element_rows),
         Table("components", COMPONENT_COLUMNS, component_rows),
     ]
+    return tables, note
 
 
 def _without_doubled_owners(rows: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], str | None]:
@@ -152,10 +159,6 @@ def _without_doubled_owners(rows: list[dict[str, Any]]) -> tuple[list[dict[str, 
         "counted on their segments, which are in the set too."
     )
     return [row for row in rows if row["type"] not in doubled], note
-
-
-def _available(tables: list[Table]) -> dict[str, list[str]]:
-    return {table.name: list(table.columns) for table in tables}
 
 
 @mcp.tool(
@@ -197,19 +200,20 @@ async def archicad_calculate(
     warnings: list[str] = []
     if invalid:
         warnings.append(f"{len(invalid)} entries have no element GUID and were left out.")
+    tables, note = await _load_tables(ids, target_port, warnings)
     # The note about column and beam materials only matters to queries that read them.
-    reads_components = sql is None or "components" in sql.lower()
-    tables = await _load_tables(ids, target_port, warnings, reads_components=reads_components)
+    if note and (sql is None or "components" in sql.lower()):
+        warnings.append(note)
 
     if sql is None:
         response: dict[str, Any] = {"tables": describe(tables), "units": UNITS}
     else:
         try:
             response = await asyncio.to_thread(run_query, tables, sql)
+        except UnknownNameError as error:
+            raise ToolError(f"{error} Available tables: {column_names(tables)}") from None
         except CalculationError as error:
-            # Only a wrong table or column name needs the list of what exists.
-            names = f" Available tables: {_available(tables)}" if "no such" in str(error) else ""
-            raise ToolError(f"{error}{names}") from None
+            raise ToolError(str(error)) from None
     if warnings:
         response["warnings"] = warnings
     return response

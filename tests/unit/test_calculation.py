@@ -7,7 +7,15 @@ from pathlib import Path
 import pytest
 
 from caracara_archicad_mcp import calculation
-from caracara_archicad_mcp.calculation import CalculationError, Table, run_query, snake_case, sqlite_type
+from caracara_archicad_mcp.calculation import (
+    CalculationError,
+    Table,
+    UnknownNameError,
+    column_names,
+    run_query,
+    snake_case,
+    sqlite_type,
+)
 
 
 @pytest.fixture
@@ -82,8 +90,17 @@ def test_overlong_queries_are_refused(tables):
 
 
 def test_syntax_errors_are_explained(tables):
-    with pytest.raises(CalculationError, match="no such column: nope"):
+    with pytest.raises(UnknownNameError, match="no such column: nope"):
         run_query(tables, "SELECT nope FROM elements")
+    with pytest.raises(UnknownNameError, match="no such table: walls"):
+        run_query(tables, "SELECT * FROM walls")
+    with pytest.raises(CalculationError) as other:
+        run_query(tables, "SELEC 1")
+    assert not isinstance(other.value, UnknownNameError)
+
+
+def test_column_names_list_each_table(tables):
+    assert column_names(tables) == {table.name: list(table.columns) for table in tables}
 
 
 def test_each_query_starts_from_the_original_data(tables):

@@ -32,6 +32,10 @@ class CalculationError(ValueError):
     """The query could not run; the message is meant for the model that wrote it."""
 
 
+class UnknownNameError(CalculationError):
+    """The query names a table or column that does not exist."""
+
+
 @dataclass
 class Table:
     name: str
@@ -70,6 +74,11 @@ def describe(tables: Iterable[Table]) -> dict[str, Any]:
     return {table.name: {"rowCount": len(table.rows), "columns": table.columns} for table in tables}
 
 
+def column_names(tables: Iterable[Table]) -> dict[str, list[str]]:
+    """The tables' column names, short enough to repeat when a query names one that does not exist."""
+    return {table.name: list(table.columns) for table in tables}
+
+
 def run_query(tables: Sequence[Table], sql: str) -> dict[str, Any]:
     """Load the tables into a fresh in-memory database, run one read-only SELECT and discard the database."""
     if len(sql) > MAX_SQL_LENGTH:
@@ -102,6 +111,8 @@ def run_query(tables: Sequence[Table], sql: str) -> dict[str, Any]:
                 message = f"the query took longer than {QUERY_TIME_BUDGET_SECONDS:g} seconds and was stopped"
             elif "not authorized" in message or "authorization denied" in message:
                 message = "only a single read-only SELECT query is allowed"
+            elif message.startswith(("no such table", "no such column")):
+                raise UnknownNameError(f"The query failed: {message}.") from None
             raise CalculationError(f"The query failed: {message}.") from None
         if cursor.description is None:
             raise CalculationError("Only a SELECT query that returns rows is allowed.")
