@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import base64
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-from mcp.server.mcpserver.exceptions import ToolError
 
 from caracara_archicad_mcp import file_paths, safety
 from caracara_archicad_mcp.result_registry import ResultRegistry
@@ -71,11 +71,20 @@ async def test_element_previews_work_in_read_only_mode(fake_archicad):
 
 
 @pytest.mark.asyncio
-async def test_window_captures_are_blocked_in_read_only_mode(fake_archicad):
-    """Saving the window writes a file, which read-only mode does not allow."""
-    with pytest.raises(ToolError, match="read-only mode"):
-        await archicad_capture_view()
-    assert fake_archicad.calls == []
+async def test_window_captures_work_in_read_only_mode(fake_archicad):
+    """The window picture is written only into the output directory and changes nothing in the project,
+    so read-only mode allows it (agreed after the live test)."""
+
+    def save(params):
+        Path(params["imageFilePath"]).write_bytes(b"window picture")
+        return {"imageFilePath": params["imageFilePath"]}
+
+    fake_archicad.on_tapir_command("SaveCurrentWindowAsImage", save)
+
+    image = await archicad_capture_view()
+
+    assert base64.b64decode(image.to_image_content().data) == b"window picture"
+    assert [command for command, _ in fake_archicad.calls] == ["SaveCurrentWindowAsImage"]
 
 
 @pytest.mark.asyncio

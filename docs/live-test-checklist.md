@@ -192,12 +192,12 @@ Known limit: custom properties (fire rating, cost codes and so on) aren't in the
       check it looks right". Note whether the AI spots a deliberate mistake: ______
 - [ ] **No files left behind:** after a few captures, the folder `caracara-archicad-mcp/captures`
       in your temp folder (`%TEMP%` on Windows, `$TMPDIR` on macOS) is empty.
-- [ ] **Read-only plus images:** with both settings on, a window screenshot is **refused** and an
-      element preview **works** (expected; see note below).
+- [ ] **Read-only plus images:** with both settings on, a window screenshot and an element preview
+      both **work**, and nothing in the project changes.
 - [ ] Note how long a window capture takes: ______ seconds, and whether it feels worth the wait.
 
-Decision needed: should window screenshots be allowed in read-only mode? Today they're blocked,
-because saving the window writes a temporary file. A one-line change would allow them.
+Window screenshots are allowed in read-only mode: Archicad writes the picture only into the server's
+output folder, and it is deleted straight away.
 
 ---
 
