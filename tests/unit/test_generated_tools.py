@@ -318,6 +318,20 @@ async def test_inactive_in_range_port_is_rejected_before_transport(fake_archicad
     assert fake_archicad.calls == []
 
 
+async def test_unknown_port_is_discovered_before_the_call(fake_archicad):
+    # A fresh server has no connections until something scans for Archicad.
+    multi_conn = multi_conn_instance.get()
+    known = dict(multi_conn.active)
+    multi_conn.active.clear()
+    multi_conn.connect.all.side_effect = lambda: multi_conn.active.update(known)
+    fake_archicad.on_tapir_command("GetAddOnVersion", {"version": "1.0.0"})
+
+    result = await archicad_call_tool("app_get_add_on_version", {"port": fake_archicad.port})
+
+    assert result == {"version": "1.0.0"}
+    multi_conn.refresh.all_ports.assert_called_once()
+
+
 async def test_aliased_parameter_is_sent_under_its_api_name(fake_archicad):
     """
     Parameters whose name collides with a pydantic BaseModel member are
