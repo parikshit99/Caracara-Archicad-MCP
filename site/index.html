@@ -63,13 +63,17 @@
 
   * { box-sizing: border-box; }
   html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; scroll-padding-top: 72px; overflow-x: clip; }
-  body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.6 var(--body); overflow-x: hidden; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 1rem/1.6 var(--body); overflow-x: hidden; }
   a { color: var(--accent); text-underline-offset: 3px; }
   code, pre { font-family: var(--mono); font-size: 0.86em; }
   :not(pre) > code { background: var(--surface-2); border: 1px solid var(--border); padding: 0.05em 0.35em; border-radius: 5px; }
   ::selection { background: var(--accent); color: var(--accent-ink); }
   .wrap { max-width: 1120px; margin: 0 auto; padding: 0 16px; }
   @media (min-width: 720px) { .wrap { padding: 0 24px; } }
+  /* Wide screens: a wider column and larger type (everything is sized in rem), so the page fills the screen
+     instead of sitting as a narrow strip in the middle. */
+  @media (min-width: 1600px) { html { font-size: 17.5px; } .wrap { max-width: 1320px; } }
+  @media (min-width: 2200px) { html { font-size: 20px; } .wrap { max-width: 1560px; } }
 
   /* Header */
   header.top {
@@ -201,6 +205,8 @@
   .sub { color: var(--muted); margin: 0 0 40px; max-width: 60ch; font-size: 1.05rem; }
 
   .cards { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); }
+  /* Three per row on desktop, so six cards make two even rows however wide the column is. */
+  @media (min-width: 1000px) { .cards { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
   .card {
     position: relative; padding: 24px; border-radius: 16px; background: var(--surface); border: 1px solid var(--border);
     overflow: hidden; transition: transform .3s cubic-bezier(.2,.8,.2,1), border-color .3s;
@@ -276,6 +282,7 @@
     <a class="brand" href="#"><img src="caracara-mark-128.webp" alt="" width="32" height="32">Caracara</a>
     <nav class="links" aria-label="Main">
       <a class="opt" href="#features">Features</a>
+      <a class="opt" href="#capabilities">Capabilities</a>
       <a class="opt" href="#install">Install</a>
       <a class="opt" href="#tools">Tools</a>
       <a class="gh" href="https://github.com/parikshit99/Caracara-Archicad-MCP">GitHub</a>
@@ -322,7 +329,7 @@
 
       <div class="stats reveal" style="--d:.1s">
         <div class="stat"><div class="n" data-count="351">351</div><div class="l">Archicad commands</div></div>
-        <div class="stat"><div class="n" data-count="7">7</div><div class="l">focused MCP tools</div></div>
+        <div class="stat"><div class="n" data-count="11">11</div><div class="l">focused MCP tools</div></div>
         <div class="stat"><div class="n" data-count="1">1</div><div class="l">Undo step per change</div></div>
         <div class="stat"><div class="n" data-count="0">0</div><div class="l">Python setup steps</div></div>
       </div>
@@ -358,12 +365,52 @@
         <div class="card reveal" style="--d:.06s">
           <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4.5 6v6c0 4.5 3.2 7.8 7.5 9 4.3-1.2 7.5-4.5 7.5-9V6L12 3Z"/><path d="m9 12 2 2 4-4"/></svg></div>
           <h3>Safe by default</h3>
-          <p>Files Archicad writes are confined to one output folder. HTTP transports listen only on this machine unless you allow remote access with a token.</p>
+          <p>Files Archicad writes are confined to one output folder, logs leave out your model data, and HTTP transports listen only on this machine unless you allow remote access with a token.</p>
         </div>
         <div class="card reveal" style="--d:.12s">
           <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4" width="13" height="10" rx="1.5"/><rect x="8.5" y="10" width="13" height="10" rx="1.5"/></svg></div>
           <h3>Several Archicads at once</h3>
           <p>Discover every running instance and send each command to the one you mean by its port. Works on Windows and macOS.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="capabilities">
+    <div class="wrap">
+      <p class="kicker reveal">Capabilities</p>
+      <h2 class="reveal">Ask about quantities, space and the project.</h2>
+      <p class="sub reveal">Beyond finding and changing elements, Caracara answers the questions architects ask every day, and checks before it changes anything.</p>
+      <div class="cards">
+        <div class="card reveal">
+          <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 7h8M8 11h2M12 11h2M16 11h0M8 15h2M12 15h2M16 15h0"/></svg></div>
+          <h3>Exact quantities</h3>
+          <p><code>archicad_calculate</code> totals volumes, areas and lengths per story, type or building material with one read-only SQL query, using Archicad's own quantities. The numbers are added up exactly, not estimated by the AI.</p>
+        </div>
+        <div class="card reveal" style="--d:.06s">
+          <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V8l7-5 7 5v13"/><path d="M9 21v-6h6v6"/></svg></div>
+          <h3>The project at a glance</h3>
+          <p><code>archicad_project_overview</code> gives stories, units, layers (with which are locked or hidden), classifications and north in one call. File path, location and client details stay out unless you ask for them.</p>
+        </div>
+        <div class="card reveal" style="--d:.12s">
+          <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="11" height="11" rx="1.5"/><rect x="10" y="10" width="11" height="11" rx="1.5"/></svg></div>
+          <h3>Spatial questions</h3>
+          <p><code>archicad_spatial_query</code> finds what is near, inside or colliding with what: conduits within 0.5 m of a wall, furniture per zone, or Archicad's own collision check. Results name elements by their Element ID.</p>
+        </div>
+        <div class="card reveal">
+          <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4.5 6v6c0 4.5 3.2 7.8 7.5 9 4.3-1.2 7.5-4.5 7.5-9V6L12 3Z"/><path d="m9 12 2 2 4-4"/></svg></div>
+          <h3>Checked before every change</h3>
+          <p>Before a change, Caracara looks for elements that were deleted since they were found, or sit on a locked layer. If there are any, or a delete would also remove doors or windows, nothing changes until you agree. Preview any change with a dry run.</p>
+        </div>
+        <div class="card reveal" style="--d:.06s">
+          <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></div>
+          <h3>Read-only mode</h3>
+          <p>One switch in the extension's settings lets the AI look at your projects but never change, delete, save or export anything. Queries, calculations, overviews and dry runs keep working.</p>
+        </div>
+        <div class="card reveal" style="--d:.12s">
+          <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="11" r="2"/><path d="m21 16-5-5-8 8"/></svg></div>
+          <h3>Screenshots, if you allow them</h3>
+          <p><code>archicad_capture_view</code> lets the AI look at the window in front or a preview of one element to check its work. It is off by default: pictures are uploaded to your AI provider, and each one uses more tokens and context.</p>
         </div>
       </div>
     </div>
@@ -384,7 +431,7 @@
         <div class="step-card reveal">
           <div>
             <h3>Install the bundle</h3>
-            <p>Download <a href="https://github.com/parikshit99/Caracara-Archicad-MCP/releases/latest/download/caracara-archicad.mcpb">caracara-archicad.mcpb</a> and open it with Claude Desktop, Claude Code or another client that supports <a href="https://github.com/modelcontextprotocol/mcpb">MCP Bundles</a>. For unreleased changes, use the <a href="https://github.com/parikshit99/Caracara-Archicad-MCP/releases/download/weekly/caracara-archicad-weekly.mcpb">weekly build</a>.</p>
+            <p>Download <a href="https://github.com/parikshit99/Caracara-Archicad-MCP/releases/latest/download/caracara-archicad.mcpb">caracara-archicad.mcpb</a> and open it with Claude Desktop, Claude Code or another client that supports <a href="https://github.com/modelcontextprotocol/mcpb">MCP Bundles</a>. For unreleased changes, use the <a href="https://github.com/parikshit99/Caracara-Archicad-MCP/releases/download/weekly/caracara-archicad-weekly.mcpb">weekly build</a>. In the extension's settings you can switch on <b>Read-only mode</b>, or <b>Allow pictures of the design</b> (uploaded to your AI provider; they help the AI check its work but use more tokens and context).</p>
           </div>
         </div>
         <div class="step-card reveal">
@@ -411,23 +458,27 @@
         <div class="step-card reveal">
           <div>
             <h3>Ask</h3>
-            <p>Restart your client and try <em>"Which Archicad projects do I have open?"</em>, then <em>"Find every wall on the ground floor and highlight it in red."</em></p>
+            <p>Restart your client and try <em>"Which Archicad projects do I have open?"</em>, then <em>"Find every wall on the ground floor and highlight it in red."</em> or <em>"How much concrete is in the walls, per story?"</em></p>
           </div>
         </div>
       </div>
-      <div class="callout reveal"><b>Heads up:</b> the server can change the open project, export files, and send or receive Teamwork changes. Treat installing it like handing your AI client your Archicad seat.</div>
+      <div class="callout reveal"><b>Heads up:</b> the server can change the open project, export files, and send or receive Teamwork changes. Treat installing it like handing your AI client your Archicad seat, or switch on read-only mode to let it look without touching anything.</div>
     </div>
   </section>
 
   <section id="tools">
     <div class="wrap">
       <p class="kicker reveal">Tools</p>
-      <h2 class="reveal">Seven tools in front of 351 commands.</h2>
+      <h2 class="reveal">Eleven tools in front of 351 commands.</h2>
       <p class="sub reveal">The agent reaches for the high-level tools first and drops to the low-level ones only when it needs a specific command.</p>
       <div class="tools">
         <div class="tool reveal"><code>discovery_list_active_archicads</code><p>Lists running Archicad instances and their ports, and flags ones that are unresponsive or missing Tapir.</p></div>
         <div class="tool reveal"><code>archicad_query</code><p>Finds elements and reads their metadata; returns a set, element IDs, or just the fields you name.</p></div>
-        <div class="tool reveal"><code>archicad_mutate</code><p>Sets properties, moves, rotates, edits details, highlights or deletes a set of elements in one Undo step.</p></div>
+        <div class="tool reveal"><code>archicad_mutate</code><p>Sets properties, moves, rotates, edits details, highlights or deletes a set of elements in one Undo step, after checking for deleted or locked elements.</p></div>
+        <div class="tool reveal"><code>archicad_calculate</code><p>Runs one read-only SQL query over a set's quantities and building materials: totals, schedules, bills of quantities.</p></div>
+        <div class="tool reveal"><code>archicad_project_overview</code><p>Stories, units, layers, classifications and north in one call; private details only on request.</p></div>
+        <div class="tool reveal"><code>archicad_spatial_query</code><p>Relates two sets in space: near, inside, or colliding (Archicad's exact check).</p></div>
+        <div class="tool reveal"><code>archicad_capture_view<span class="tag">opt-in</span></code><p>A picture of the window in front or of one element, for visual checks. Offered only when you allow pictures.</p></div>
         <div class="tool reveal"><code>archicad_list_commands<span class="tag">low-level</span></code><p>Lists every command with a short description.</p></div>
         <div class="tool reveal"><code>archicad_get_command_schema<span class="tag">low-level</span></code><p>Returns the argument schema of one command.</p></div>
         <div class="tool reveal"><code>archicad_call_tool<span class="tag">low-level</span></code><p>Runs any command by name after validating its arguments.</p></div>
