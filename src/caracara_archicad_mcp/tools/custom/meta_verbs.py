@@ -334,13 +334,17 @@ async def _hold_for_skipped(m: _Mutation) -> dict[str, Any] | None:
     }
 
 
-async def _with_check_results(result: Any, m: _Mutation, set_age: float | None) -> Any:
+def _set_age(target_set: str | list[Any]) -> dict[str, Any]:
+    """{'setAgeSeconds': ...} for a setId: how long ago the set was found, since it does not follow later changes."""
+    age = ResultRegistry.age_seconds(target_set) if isinstance(target_set, str) else None
+    return {"setAgeSeconds": round(age)} if age is not None else {}
+
+
+async def _with_check_results(result: Any, m: _Mutation, set_age: dict[str, Any]) -> Any:
     """Add the set's age, what the check before the change found, and the Element IDs of failed elements."""
     if is_running(result) or not isinstance(result, dict):
         return result
-    extra: dict[str, Any] = {}
-    if set_age is not None:
-        extra["setAgeSeconds"] = round(set_age)
+    extra: dict[str, Any] = dict(set_age)
     if m.missing_count is not None:
         extra["missingCount"] = m.missing_count
     if isinstance(result.get("failedElements"), list):
@@ -417,11 +421,10 @@ async def archicad_mutate(
             changes_model=run_action is not _highlight,
             deletes=run_action is _delete,
         )
-        return {"dryRun": True, **report}
+        return {"dryRun": True, **report, **_set_age(target_set)}
     mutation = _Mutation(ids, invalid, set_id, payload, target_port, confirm)
     if run_action is _highlight:
         return await run_action(mutation)
     if not confirm and ids and (held := await _hold_for_skipped(mutation)):
-        return held
-    set_age = ResultRegistry.age_seconds(target_set) if isinstance(target_set, str) else None
-    return await _with_check_results(await run_action(mutation), mutation, set_age)
+        return {**held, **_set_age(target_set)}
+    return await _with_check_results(await run_action(mutation), mutation, _set_age(target_set))
