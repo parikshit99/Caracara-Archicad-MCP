@@ -17,6 +17,7 @@ from caracara_archicad_mcp import file_paths
 from caracara_archicad_mcp.context import multi_conn_instance
 from caracara_archicad_mcp.field_masking import prune_payload
 from caracara_archicad_mcp.result_registry import STORAGE_SETS, ResultRegistry
+from caracara_archicad_mcp.safety import is_read_only_command
 from caracara_archicad_mcp.tools import overrides
 from caracara_archicad_mcp.tools.custom import meta_verbs
 from caracara_archicad_mcp.tools.custom.functions import archicad_call_tool
@@ -175,8 +176,15 @@ async def test_deleted_element_in_set_is_itemized_not_raised(fake_archicad):
         },
     )
 
+    # Looking up the failed element's Element ID finds it deleted, so it gets none.
+    fake_archicad.on_tapir_command(
+        "GetDetailsOfElements", {"detailsOfElements": [{"error": {"code": -2130313115, "message": "gone"}}]}
+    )
+
+    # The check before a change finds the deleted element; once the user confirms, Archicad still fails
+    # it, and that failure is itemized instead of raised.
     result = await archicad_mutate(
-        set_id, "set_details", {"details": {"floorIndex": 0, "layerIndex": 2}}, port=fake_archicad.port
+        set_id, "set_details", {"details": {"floorIndex": 0, "layerIndex": 2}}, port=fake_archicad.port, confirm=True
     )
 
     assert result["failedCount"] == 1
@@ -212,10 +220,14 @@ async def test_each_mutation_is_one_tapir_command(fake_archicad, action, payload
     """Tapir wraps one command in one undoable operation, so a batch must be one call."""
     set_id = ResultRegistry.register([{"elementId": {"guid": _guid(i)}} for i in range(25)], element_type="Wall")
     fake_archicad.on_tapir_command(command, {"executionResults": [{"success": True}] * 25})
+    # Every change first checks, read-only, that the elements exist and may be changed, and a delete
+    # also looks for doors and windows hosted in them.
+    fake_archicad.on_tapir_command("FilterElements", lambda params: {"elements": params["elements"]})
+    fake_archicad.on_tapir_command("GetConnectedElements", {"connectedElements": [{"elements": []}] * 25})
 
     await archicad_mutate(set_id, action, payload, port=fake_archicad.port)
 
-    assert [call[0] for call in fake_archicad.calls] == [command]
+    assert [call[0] for call in fake_archicad.calls if not is_read_only_command(call[0])] == [command]
 
 
 @pytest.mark.asyncio

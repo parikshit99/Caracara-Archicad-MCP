@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Awaitable, Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from mcp.server.mcpserver.exceptions import ToolError
@@ -18,8 +18,16 @@ from multiconn_archicad.models.tapir.types import ElementType
 
 from caracara_archicad_mcp.app import mcp
 from caracara_archicad_mcp.result_registry import ResultRegistry
+from caracara_archicad_mcp.safety import ensure_allowed
 from caracara_archicad_mcp.tools.custom.element_sets import element_ids, target_elements
 from caracara_archicad_mcp.tools.custom.functions import archicad_call_tool, is_running
+from caracara_archicad_mcp.tools.custom.mutation_checks import (
+    describe_hosted,
+    hosted_elements,
+    label_listed,
+    preflight,
+    skipped_elements,
+)
 
 log = logging.getLogger(__name__)
 
@@ -216,6 +224,10 @@ class _Mutation:
     set_id: str
     payload: dict[str, Any] | None
     port: int
+    confirm: bool = False
+    # Filled by the check before the change: missing elements counted, and warnings.
+    missing_count: int | None = None
+    warnings: list[str] = field(default_factory=list)
 
     def require_payload(self, action: str, example: str = "") -> dict[str, Any]:
         if not self.payload:
@@ -232,6 +244,22 @@ class _Mutation:
 
 
 async def _delete(m: _Mutation) -> Any:
+    if not m.confirm and m.element_ids:
+        hosted, _ = await hosted_elements(m.element_ids, m.port)
+        if hosted:
+            held: dict[str, Any] = {
+                "deleted": False,
+                "needsConfirmation": True,
+                "message": (
+                    f"Nothing was deleted. These elements host {describe_hosted(hosted)}, which Archicad would "
+                    "delete too. Ask the user; if they agree, repeat this call with confirm=true."
+                ),
+                "hostedElementCount": len(hosted),
+                "hostedElements": await label_listed(hosted[:MAX_ITEMIZED_FAILURES], m.port, m.warnings),
+            }
+            if m.warnings:
+                held["warnings"] = m.warnings
+            return held
     return await m.run("elements_delete_elements", {"elements": m.elements()})
 
 
@@ -286,6 +314,57 @@ MUTATION_ACTIONS: dict[str, Callable[[_Mutation], Awaitable[Any]]] = {
 }
 
 
+async def _hold_for_skipped(m: _Mutation) -> dict[str, Any] | None:
+    """Stop a change Archicad would apply to only part of the set, so the user decides first."""
+    report, m.warnings = await skipped_elements(m.element_ids, m.port)
+    m.missing_count = report.get("missingCount")
+    skipped = (m.missing_count or 0) + report.get("notEditableCount", 0)
+    if not skipped:
+        return None
+    return {
+        "changed": False,
+        "needsConfirmation": True,
+        "message": (
+            f"Nothing was changed: Archicad would skip {skipped} of {len(m.element_ids)} elements (see 'missing' "
+            "and 'notEditable'). Tell the user. Query again to work on the model as it is now, or, if they agree, "
+            "repeat this call with confirm=true to change the other elements."
+        ),
+        **report,
+        "warnings": m.warnings,
+    }
+
+
+def _set_age(target_set: str | list[Any]) -> dict[str, Any]:
+    """{'setAgeSeconds': ...} for a setId: how long ago the set was found, since it does not follow later changes."""
+    age = ResultRegistry.age_seconds(target_set) if isinstance(target_set, str) else None
+    return {"setAgeSeconds": round(age)} if age is not None else {}
+
+
+async def _with_check_results(result: Any, m: _Mutation, set_age: dict[str, Any]) -> Any:
+    """Add the set's age, what the check before the change found, and the Element IDs of failed elements."""
+    if is_running(result) or not isinstance(result, dict):
+        return result
+    extra: dict[str, Any] = dict(set_age)
+    if m.missing_count is not None:
+        extra["missingCount"] = m.missing_count
+    if isinstance(result.get("failedElements"), list):
+        extra["failedElements"] = await label_listed(result["failedElements"], m.port, m.warnings)
+    if m.warnings and "warnings" not in result:
+        extra["warnings"] = m.warnings
+    return {**result, **extra}
+
+
+# The Archicad command behind each action, for read-only mode.
+ACTION_COMMANDS = {
+    _delete: "DeleteElements",
+    _highlight: "HighlightElements",
+    _set_property: "SetPropertyValuesOfElements",
+    _move: "MoveElements",
+    _rotate: "RotateElements",
+    _set_details: "SetDetailsOfElements",
+}
+
+
 @mcp.tool(
     name="archicad_mutate",
     title="Mutate Archicad Elements",
@@ -295,7 +374,13 @@ MUTATION_ACTIONS: dict[str, Callable[[_Mutation], Awaitable[Any]]] = {
         "action and payload: 'set_property' {'propertyId', 'propertyValue'} or {'propertyValues': [...]}; "
         "'move' {'vector': {'x','y','z'}}; 'rotate' {'rotation': {...}}; 'set_details' {'details': {...}}; "
         "'highlight' {'highlightedColors', 'wireframe3D'}; 'delete' {}. "
-        "Elements that no longer exist or cannot be changed are listed in 'failedElements'."
+        "A set does not follow later changes in Archicad: results give its age in 'setAgeSeconds' and how many "
+        "of its elements no longer exist in 'missingCount'. Before changing anything, elements that no longer "
+        "exist or cannot be changed (locked layer, or not reserved in Teamwork) are looked for; if there are "
+        "any, nothing is changed and they are reported instead, and a delete that would also remove doors, "
+        "windows, skylights or openings of other elements is held back the same way. Show that report to the "
+        "user and repeat the call with confirm=true only if they agree. Elements Archicad still skips are "
+        "listed in 'failedElements'. dry_run=true changes nothing and returns the same report."
     ),
     annotations=ToolAnnotations(
         readOnlyHint=False,
@@ -309,16 +394,37 @@ async def archicad_mutate(
     action: str,
     payload: dict[str, Any] | None = None,
     port: int | None = None,
+    dry_run: bool = False,
+    confirm: bool = False,
 ) -> dict[str, Any]:
     """Execute a polymorphic mutation on Archicad elements."""
-    run_action = MUTATION_ACTIONS.get(action.strip().lower())
+    action = action.strip().lower()
+    run_action = MUTATION_ACTIONS.get(action)
     if run_action is None:
         raise ToolError(
             f"Unsupported action '{action}'. "
             "Supported actions: 'delete', 'highlight', 'set_property', 'move', 'rotate', 'set_details'."
         )
+    if not dry_run:
+        ensure_allowed(ACTION_COMMANDS[run_action], can_preview=True)
     elements = target_elements(target_set)
     # An explicit element list gets a set of its own, so set-based commands can address it.
     set_id = target_set if isinstance(target_set, str) else ResultRegistry.register(elements)
     ids, invalid = element_ids(elements)
-    return await run_action(_Mutation(ids, invalid, set_id, payload, port or 19723))
+    target_port = port or 19723
+    if dry_run:
+        report = await preflight(
+            action,
+            ids,
+            invalid,
+            target_port,
+            changes_model=run_action is not _highlight,
+            deletes=run_action is _delete,
+        )
+        return {"dryRun": True, **report, **_set_age(target_set)}
+    mutation = _Mutation(ids, invalid, set_id, payload, target_port, confirm)
+    if run_action is _highlight:
+        return await run_action(mutation)
+    if not confirm and ids and (held := await _hold_for_skipped(mutation)):
+        return {**held, **_set_age(target_set)}
+    return await _with_check_results(await run_action(mutation), mutation, _set_age(target_set))
