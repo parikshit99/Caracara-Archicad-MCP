@@ -323,6 +323,7 @@ async def test_change_waits_when_elements_of_the_set_were_deleted(fake_archicad)
     assert mutations(fake_archicad) == []
     assert result["changed"] is False
     assert result["needsConfirmation"] is True
+    assert result["setAgeSeconds"] == 0
     assert result["missingCount"] == 1
     assert result["missing"] == [{"elementId": {"guid": WALL_2}}]
     assert "notEditable" not in result
@@ -406,3 +407,13 @@ async def test_unread_element_ids_leave_the_missing_count_open(fake_archicad):
     assert "missingCount" not in report
     assert report["notEditable"] == [{"elementId": {"guid": WALL_2}}]
     assert any("not told apart" in warning for warning in report["warnings"])
+
+
+@pytest.mark.asyncio
+async def test_dry_run_of_a_set_gives_its_age(fake_archicad):
+    set_id = ResultRegistry.register(_ids(WALL_1), element_type="Wall")
+    fake_archicad.on_tapir_command("FilterElements", editable())
+
+    report = await archicad_mutate(set_id, "move", {"vector": {"x": 1}}, port=fake_archicad.port, dry_run=True)
+
+    assert report["setAgeSeconds"] == 0
