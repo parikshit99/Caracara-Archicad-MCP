@@ -348,9 +348,9 @@ def _get_header(port: int) -> ConnHeader:
     multi_conn = multi_conn_instance.get()
     if Port(port) not in multi_conn.active:
         # A fresh server knows no ports until discovery runs, and the model may already know
-        # the port from an earlier conversation; scan once instead of failing.
-        multi_conn.refresh.all_ports()
-        multi_conn.connect.all()
+        # the port from an earlier conversation; look at that one port instead of failing.
+        multi_conn.refresh.from_ports(Port(port))
+        multi_conn.connect.from_ports(Port(port))
     try:
         return multi_conn.active[Port(port)]
     except KeyError:

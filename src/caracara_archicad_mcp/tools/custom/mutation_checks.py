@@ -13,7 +13,7 @@ from typing import Any
 from mcp.server.mcpserver.exceptions import ToolError
 
 from caracara_archicad_mcp.result_registry import ResultRegistry
-from caracara_archicad_mcp.tools.custom.element_sets import element_id, element_labels
+from caracara_archicad_mcp.tools.custom.element_sets import as_elements, element_id, element_labels, labels_or_warning
 from caracara_archicad_mcp.tools.custom.functions import archicad_call_tool, is_running
 
 # Element types Archicad deletes together with the element that hosts them.
@@ -26,16 +26,12 @@ def _guids(elements: list[Any]) -> list[str]:
     return [elem_id["guid"] for elem in elements if (elem_id := element_id(elem)) is not None]
 
 
-def _as_elements(element_ids: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    return [{"elementId": e} for e in element_ids]
-
-
 async def not_editable(element_ids: list[dict[str, Any]], port: int) -> tuple[list[dict[str, Any]], str | None]:
     """The elements Archicad would refuse to change, and a warning when that could not be checked."""
     try:
         result = await archicad_call_tool(
             "elements_filter_elements",
-            {"port": port, "params": {"elements": _as_elements(element_ids), "filters": ["IsEditable"]}},
+            {"port": port, "params": {"elements": as_elements(element_ids), "filters": ["IsEditable"]}},
         )
     except ToolError as error:
         return [], f"Locked elements were not checked: {error}"
@@ -59,7 +55,7 @@ async def hosted_elements(element_ids: list[dict[str, Any]], port: int) -> tuple
         try:
             result = await archicad_call_tool(
                 "elements_get_connected_elements",
-                {"port": port, "params": {"elements": _as_elements(element_ids), "connectedElementType": element_type}},
+                {"port": port, "params": {"elements": as_elements(element_ids), "connectedElementType": element_type}},
             )
         except ToolError as error:
             unchecked.append(f"{element_type}: {error}")
@@ -81,24 +77,25 @@ async def skipped_elements(element_ids: list[dict[str, Any]], port: int) -> tupl
     if unchecked:
         return {}, [unchecked]
     warnings: list[str] = []
-    report: dict[str, Any] = {}
-    labels: dict[str, str | None] = {}
+    labels: dict[str, str | None] | None
     try:
         labels = await element_labels([e["guid"] for e in skipped], port)
-        report["missingCount"] = sum(1 for e in skipped if labels[e["guid"]] is None)
     except ToolError as error:
+        labels = None
         warnings.append(f"Elements that no longer exist were not told apart from locked ones: {error}")
-    missing = [e for e in skipped if e["guid"] in labels and labels[e["guid"]] is None]
-    locked = [e for e in skipped if not (e["guid"] in labels and labels[e["guid"]] is None)]
+    gone = {guid for guid, label in (labels or {}).items() if label is None}
+    missing = [e for e in skipped if e["guid"] in gone]
+    locked = [e for e in skipped if e["guid"] not in gone]
+    report: dict[str, Any] = {} if labels is None else {"missingCount": len(missing)}
     if missing:
-        report["missing"] = [{"elementId": e} for e in missing[:MAX_LISTED]]
+        report["missing"] = as_elements(missing[:MAX_LISTED])
         warnings.append(
             f"{len(missing)} of {len(element_ids)} elements no longer exist in Archicad; they were deleted after "
             "the set was found. Archicad will skip them."
         )
     if locked:
         report["notEditableCount"] = len(locked)
-        report["notEditable"] = with_labels([{"elementId": e} for e in locked[:MAX_LISTED]], labels)
+        report["notEditable"] = with_labels(as_elements(locked[:MAX_LISTED]), labels or {})
         warnings.append(
             f"{len(locked)} of {len(element_ids)} elements cannot be changed: they are on a locked layer, "
             "or, in a Teamwork project, not reserved by you. Archicad will skip them."
@@ -118,12 +115,8 @@ def with_labels(items: list[dict[str, Any]], labels: dict[str, str | None]) -> l
 async def label_listed(items: list[dict[str, Any]], port: int, warnings: list[str]) -> list[dict[str, Any]]:
     """Add the Element IDs to a short list of elements (entries without an element are kept as they are),
     or say why they are missing."""
-    try:
-        labels = await element_labels([item["elementId"]["guid"] for item in items if "elementId" in item], port)
-    except ToolError as error:
-        warnings.append(f"Element IDs were not read: {error}")
-        return items
-    return with_labels(items, labels)
+    guids = [item["elementId"]["guid"] for item in items if "elementId" in item]
+    return with_labels(items, await labels_or_warning(guids, port, warnings))
 
 
 def describe_hosted(hosted: list[dict[str, Any]]) -> str:
