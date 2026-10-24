@@ -17,6 +17,17 @@ def clean_registry():
     ResultRegistry.clear()
 
 
+@pytest.fixture(autouse=True)
+def every_element_editable(fake_archicad):
+    """Changes first check, read-only, that every element still exists and may be changed."""
+    fake_archicad.on_tapir_command("FilterElements", lambda params: {"elements": params["elements"]})
+    fake_archicad.on_tapir_command("GetDetailsOfElements", {"detailsOfElements": []})
+
+
+# What a change of a whole, current set reports besides Archicad's own result.
+CHECKED = {"setAgeSeconds": 0, "missingCount": 0}
+
+
 @pytest.mark.asyncio
 async def test_archicad_query_discovery_by_type_returns_set_receipt(fake_archicad):
     """Verifies archicad_query discovers elements by type and returns a compact set receipt."""
@@ -109,13 +120,14 @@ async def test_archicad_query_all_elements_with_filters(fake_archicad):
 @pytest.mark.asyncio
 async def test_archicad_mutate_delete_via_target_set(fake_archicad):
     """Verifies archicad_mutate routes delete action for a target_set."""
-    elements = [{"elementId": {"guid": "del-1"}}]
+    elements = [{"elementId": {"guid": "00000000-0000-0000-0000-0000000000e1"}}]
     set_id = ResultRegistry.register(elements, element_type="Wall")
     fake_archicad.on_tapir_command("DeleteElements", {"executionResults": [{"success": True}]})
+    fake_archicad.on_tapir_command("GetConnectedElements", {"connectedElements": [{"elements": []}]})
 
     res = await archicad_mutate(target_set=set_id, action="delete", port=fake_archicad.port)
 
-    assert res == {"executionResults": [{"success": True}]}
+    assert res == {"executionResults": [{"success": True}], **CHECKED}
     assert fake_archicad.calls[-1] == ("DeleteElements", {"elements": elements})
 
 
@@ -143,7 +155,10 @@ async def test_archicad_mutate_highlight_via_target_set(fake_archicad):
 @pytest.mark.asyncio
 async def test_archicad_mutate_set_property_via_target_set(fake_archicad):
     """Verifies archicad_mutate routes property updates across all elements in a target_set."""
-    elements = [{"elementId": {"guid": "p-1"}}, {"elementId": {"guid": "p-2"}}]
+    elements = [
+        {"elementId": {"guid": "00000000-0000-0000-0000-0000000000f1"}},
+        {"elementId": {"guid": "00000000-0000-0000-0000-0000000000f2"}},
+    ]
     set_id = ResultRegistry.register(elements, element_type="Wall")
     fake_archicad.on_tapir_command("SetPropertyValuesOfElements", {"executionResults": [{"success": True}]})
 
@@ -157,13 +172,21 @@ async def test_archicad_mutate_set_property_via_target_set(fake_archicad):
         port=fake_archicad.port,
     )
 
-    assert res == {"executionResults": [{"success": True}]}
+    assert res == {"executionResults": [{"success": True}], **CHECKED}
     assert fake_archicad.calls[-1] == (
         "SetPropertyValuesOfElements",
         {
             "elementPropertyValues": [
-                {"elementId": {"guid": "p-1"}, "propertyId": prop_id, "propertyValue": prop_val},
-                {"elementId": {"guid": "p-2"}, "propertyId": prop_id, "propertyValue": prop_val},
+                {
+                    "elementId": {"guid": "00000000-0000-0000-0000-0000000000f1"},
+                    "propertyId": prop_id,
+                    "propertyValue": prop_val,
+                },
+                {
+                    "elementId": {"guid": "00000000-0000-0000-0000-0000000000f2"},
+                    "propertyId": prop_id,
+                    "propertyValue": prop_val,
+                },
             ]
         },
     )
@@ -183,7 +206,7 @@ async def test_archicad_mutate_move_elements_via_target_set(fake_archicad):
         port=fake_archicad.port,
     )
 
-    assert res == {"executionResults": [{"success": True}]}
+    assert res == {"executionResults": [{"success": True}], **CHECKED}
     assert fake_archicad.calls[-1] == (
         "MoveElements",
         {
@@ -218,7 +241,7 @@ async def test_archicad_mutate_rotate_elements_via_target_set(fake_archicad):
         port=fake_archicad.port,
     )
 
-    assert res == {"executionResults": [{"success": True}]}
+    assert res == {"executionResults": [{"success": True}], **CHECKED}
     assert fake_archicad.calls[-1] == (
         "RotateElements",
         {
@@ -289,7 +312,7 @@ async def test_complex_composable_workflow_chaining_both_meta_verbs(fake_archica
         },
         port=fake_archicad.port,
     )
-    assert prop_res == {"executionResults": [{"success": True}]}
+    assert prop_res == {"executionResults": [{"success": True}], **CHECKED}
 
     # Step 3: Move elements by vector
     move_res = await archicad_mutate(
@@ -298,7 +321,7 @@ async def test_complex_composable_workflow_chaining_both_meta_verbs(fake_archica
         payload={"x": 10.0, "y": 0.0, "z": 0.0},
         port=fake_archicad.port,
     )
-    assert move_res == {"executionResults": [{"success": True}]}
+    assert move_res == {"executionResults": [{"success": True}], **CHECKED}
 
     # Step 4: Delete elements in set
     del_res = await archicad_mutate(
@@ -306,7 +329,7 @@ async def test_complex_composable_workflow_chaining_both_meta_verbs(fake_archica
         action="delete",
         port=fake_archicad.port,
     )
-    assert del_res == {"executionResults": [{"success": True}]}
+    assert del_res == {"executionResults": [{"success": True}], **CHECKED}
 
 
 def test_granular_tools_deprecated_in_fastmcp():

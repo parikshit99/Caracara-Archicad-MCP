@@ -1,9 +1,9 @@
 """Read-only checks of what archicad_mutate is about to do, run before anything changes.
 
-Archicad skips elements it may not change (locked layer, or not reserved by this user in
-Teamwork), and deletes the doors, windows, skylights and openings of a deleted host with it.
-These checks find both in advance, so a dry run can report them and a delete that would
-remove hosted elements can wait for the user's confirmation.
+Archicad skips elements that no longer exist or that it may not change (locked layer, or not
+reserved by this user in Teamwork), and deletes the doors, windows, skylights and openings of
+a deleted host with it. These checks find both in advance, so a dry run can report them and a
+change that would skip elements or remove hosted ones can wait for the user's confirmation.
 """
 
 from __future__ import annotations
@@ -13,7 +13,7 @@ from typing import Any
 from mcp.server.mcpserver.exceptions import ToolError
 
 from caracara_archicad_mcp.result_registry import ResultRegistry
-from caracara_archicad_mcp.tools.custom.element_sets import element_id
+from caracara_archicad_mcp.tools.custom.element_sets import element_id, element_labels
 from caracara_archicad_mcp.tools.custom.functions import archicad_call_tool, is_running
 
 # Element types Archicad deletes together with the element that hosts them.
@@ -74,6 +74,58 @@ async def hosted_elements(element_ids: list[dict[str, Any]], port: int) -> tuple
     return [{"elementId": {"guid": guid}, "type": kind} for guid, kind in hosted.items()], unchecked
 
 
+async def skipped_elements(element_ids: list[dict[str, Any]], port: int) -> tuple[dict[str, Any], list[str]]:
+    """The target elements Archicad would skip, split into missing ones (deleted after the set was found)
+    and ones it may not change, each named by its Element ID, and warnings about what could not be checked."""
+    skipped, unchecked = await not_editable(element_ids, port)
+    if unchecked:
+        return {}, [unchecked]
+    warnings: list[str] = []
+    report: dict[str, Any] = {}
+    labels: dict[str, str | None] = {}
+    try:
+        labels = await element_labels([e["guid"] for e in skipped], port)
+        report["missingCount"] = sum(1 for e in skipped if labels[e["guid"]] is None)
+    except ToolError as error:
+        warnings.append(f"Elements that no longer exist were not told apart from locked ones: {error}")
+    missing = [e for e in skipped if e["guid"] in labels and labels[e["guid"]] is None]
+    locked = [e for e in skipped if not (e["guid"] in labels and labels[e["guid"]] is None)]
+    if missing:
+        report["missing"] = [{"elementId": e} for e in missing[:MAX_LISTED]]
+        warnings.append(
+            f"{len(missing)} of {len(element_ids)} elements no longer exist in Archicad; they were deleted after "
+            "the set was found. Archicad will skip them."
+        )
+    if locked:
+        report["notEditableCount"] = len(locked)
+        report["notEditable"] = with_labels([{"elementId": e} for e in locked[:MAX_LISTED]], labels)
+        warnings.append(
+            f"{len(locked)} of {len(element_ids)} elements cannot be changed: they are on a locked layer, "
+            "or, in a Teamwork project, not reserved by you. Archicad will skip them."
+        )
+    return report, warnings
+
+
+def with_labels(items: list[dict[str, Any]], labels: dict[str, str | None]) -> list[dict[str, Any]]:
+    """Add the Element ID ('id') to listed elements whose ID is known."""
+    named = []
+    for item in items:
+        label = labels.get(item.get("elementId", {}).get("guid", ""))
+        named.append({**item, "id": label} if label else item)
+    return named
+
+
+async def label_listed(items: list[dict[str, Any]], port: int, warnings: list[str]) -> list[dict[str, Any]]:
+    """Add the Element IDs to a short list of elements (entries without an element are kept as they are),
+    or say why they are missing."""
+    try:
+        labels = await element_labels([item["elementId"]["guid"] for item in items if "elementId" in item], port)
+    except ToolError as error:
+        warnings.append(f"Element IDs were not read: {error}")
+        return items
+    return with_labels(items, labels)
+
+
 def describe_hosted(hosted: list[dict[str, Any]]) -> str:
     """'2 doors, 1 window'."""
     counts: dict[str, int] = {}
@@ -99,22 +151,15 @@ async def preflight(
         warnings.append(f"{len(invalid)} entries have no element GUID and will be skipped.")
 
     if element_ids and changes_model:
-        locked, unchecked = await not_editable(element_ids, port)
-        if unchecked:
-            warnings.append(unchecked)
-        if locked:
-            report["notEditableCount"] = len(locked)
-            report["notEditable"] = locked[:MAX_LISTED]
-            warnings.append(
-                f"{len(locked)} of {len(element_ids)} elements cannot be changed: they are on a locked layer, "
-                "or, in a Teamwork project, not reserved by you. Archicad will skip them."
-            )
+        skipped, skipped_warnings = await skipped_elements(element_ids, port)
+        report.update(skipped)
+        warnings.extend(skipped_warnings)
 
     if element_ids and deletes:
         hosted, unchecked_types = await hosted_elements(element_ids, port)
         report["hostedElementCount"] = len(hosted)
         if hosted:
-            report["hostedElements"] = hosted[:MAX_LISTED]
+            report["hostedElements"] = await label_listed(hosted[:MAX_LISTED], port, warnings)
             warnings.append(f"Deleting these elements also deletes {describe_hosted(hosted)} placed in them.")
         if unchecked_types:
             report["uncheckedHostedTypes"] = unchecked_types

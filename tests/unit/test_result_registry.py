@@ -316,6 +316,21 @@ def test_result_registry_lru_access_updates_order():
     assert ResultRegistry.has(set4)
 
 
+def test_result_registry_age_counts_from_registration_not_last_use(monkeypatch):
+    clock = [100.0]
+    monkeypatch.setattr(time, "monotonic", lambda: clock[0])
+    set_id = ResultRegistry.register([{"elementId": {"guid": "elem-age"}}], element_type="Wall")
+
+    clock[0] = 130.0
+    ResultRegistry.get(set_id)
+    clock[0] = 145.0
+
+    assert ResultRegistry.age_seconds(set_id) == 45.0
+    assert ResultRegistry.age_seconds("set_walls_99") is None
+    ResultRegistry.delete(set_id)
+    assert ResultRegistry.age_seconds(set_id) is None
+
+
 def test_result_registry_ttl_expiration():
     """Verifies that expired sets are purged when TTL is configured."""
     ResultRegistry.set_ttl(0.05)  # 50ms TTL
