@@ -343,8 +343,14 @@ def _serialized_parameters(params: Any) -> str:
 
 
 def _get_header(port: int) -> ConnHeader:
+    multi_conn = multi_conn_instance.get()
+    if Port(port) not in multi_conn.active:
+        # A fresh server knows no ports until discovery runs, and the model may already know
+        # the port from an earlier conversation; scan once instead of failing.
+        multi_conn.refresh.all_ports()
+        multi_conn.connect.all()
     try:
-        return multi_conn_instance.get().active[Port(port)]
+        return multi_conn.active[Port(port)]
     except KeyError:
         raise ToolError(f"Port {port} is not an active Archicad connection.") from None
 
