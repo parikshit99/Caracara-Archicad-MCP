@@ -1,10 +1,13 @@
 import argparse
+import contextlib
 import ipaddress
 import logging
 import math
 import os
 import sys
 from typing import Any
+
+from mcp.server.mcpserver.exceptions import ToolError
 
 import caracara_archicad_mcp.model_configuration  # noqa: F401
 from caracara_archicad_mcp.app import mcp
@@ -13,6 +16,8 @@ from caracara_archicad_mcp.jobs import JobSettings
 from caracara_archicad_mcp.logging_config import setup_logging
 from caracara_archicad_mcp.middleware import BearerTokenMiddleware
 from caracara_archicad_mcp.safety import set_read_only
+from caracara_archicad_mcp.tools.custom.capture import TOOL_NAME as CAPTURE_TOOL
+from caracara_archicad_mcp.tools.custom.capture import set_images_allowed
 
 setup_logging()
 
@@ -113,6 +118,12 @@ def parse_args() -> argparse.Namespace:
         default=str(_env("READ_ONLY", "")).lower() in ("1", "true", "yes"),
         help="Refuse every command that could change the project, files or Teamwork state; only reading is allowed.",
     )
+    parser.add_argument(
+        "--allow-images",
+        action="store_true",
+        default=str(_env("ALLOW_IMAGES", "")).lower() in ("1", "true", "yes"),
+        help="Offer archicad_capture_view, which sends pictures of the design to the AI provider (off by default).",
+    )
     return parser.parse_args()
 
 
@@ -150,6 +161,16 @@ def check_bind_host(args: argparse.Namespace) -> None:
     logging.warning("Serving MCP on non-loopback host %s; every request must carry the bearer token.", args.host)
 
 
+def configure_images(allowed: bool) -> None:
+    """Images are off unless the user allows them; when off, the capture tool is not offered at all."""
+    set_images_allowed(allowed)
+    if allowed:
+        logging.warning("Images allowed: archicad_capture_view sends pictures of the design to the AI provider.")
+    else:
+        with contextlib.suppress(ToolError):  # already removed by an earlier call
+            mcp.remove_tool(CAPTURE_TOOL)
+
+
 def main():
     args = parse_args()
     check_bind_host(args)
@@ -157,6 +178,7 @@ def main():
     set_read_only(args.read_only)
     if args.read_only:
         logging.info("Read-only mode: commands that could change the project are refused.")
+    configure_images(args.allow_images)
     import caracara_archicad_mcp.app as app_module
 
     app_module.job_settings = JobSettings(

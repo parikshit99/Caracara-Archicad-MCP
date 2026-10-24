@@ -32,6 +32,7 @@ def _clear_http_env(monkeypatch):
             "ALLOW_REMOTE",
             "OUTPUT_ROOT",
             "READ_ONLY",
+            "ALLOW_IMAGES",
         ):
             monkeypatch.delenv(f"{prefix}{name}", raising=False)
 
