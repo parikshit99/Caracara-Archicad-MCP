@@ -18,7 +18,7 @@ from mcp.types import ToolAnnotations
 from caracara_archicad_mcp.app import mcp
 from caracara_archicad_mcp.result_registry import ResultRegistry
 from caracara_archicad_mcp.spatial import Box, containers_of, pairs_within
-from caracara_archicad_mcp.tools.custom.element_sets import element_ids, element_labels, target_elements
+from caracara_archicad_mcp.tools.custom.element_sets import as_elements, element_ids, labels_or_warning, target_elements
 from caracara_archicad_mcp.tools.custom.functions import call_and_wait
 
 MAX_ELEMENTS = 100_000
@@ -38,7 +38,7 @@ async def _boxes(ids: list[dict[str, Any]], port: int) -> tuple[list[Box], int]:
     """The 3D bounding boxes of the elements, and how many elements have none (2D-only elements)."""
     result = await call_and_wait(
         "elements_get3_d_bounding_boxes",
-        {"port": port, "params": {"elements": [{"elementId": e} for e in ids]}},
+        {"port": port, "params": {"elements": as_elements(ids)}},
     )
     items = result.get("boundingBoxes3D") if isinstance(result, dict) else None
     if not isinstance(items, list) or len(items) != len(ids):
@@ -111,8 +111,8 @@ async def _collides(targets: list[dict], others: list[dict], port: int) -> dict[
         {
             "port": port,
             "params": {
-                "elementsGroup1": [{"elementId": e} for e in targets],
-                "elementsGroup2": [{"elementId": e} for e in others],
+                "elementsGroup1": as_elements(targets),
+                "elementsGroup2": as_elements(others),
             },
         },
     )
@@ -149,11 +149,10 @@ async def _with_element_ids(response: dict[str, Any], port: int) -> dict[str, An
     refs += [item["container"] for item in response.get("byContainer", [])]
     if not refs:
         return response
-    try:
-        labels = await element_labels(sorted({ref["guid"] for ref in refs}), port)
-    except ToolError as error:
-        response["warnings"] = [f"Element IDs were not read: {error}"]
-        return response
+    warnings: list[str] = []
+    labels = await labels_or_warning(sorted({ref["guid"] for ref in refs}), port, warnings)
+    if warnings:
+        response["warnings"] = warnings
     for ref in refs:
         if labels.get(ref["guid"]):
             ref["id"] = labels[ref["guid"]]
