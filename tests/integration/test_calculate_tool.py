@@ -236,3 +236,16 @@ async def test_empty_and_unknown_sets_are_refused(fake_archicad):
         await archicad_calculate([], "SELECT 1", port=fake_archicad.port)
     with pytest.raises(ToolError, match="not found"):
         await archicad_calculate("set_missing_01", "SELECT 1", port=fake_archicad.port)
+
+
+@pytest.mark.asyncio
+async def test_the_component_note_stays_out_of_element_queries(fake_archicad, model):
+    targets = [
+        _add(model, 1, "Column", 0, {"coreVolume": 0.27}, [(CONCRETE, 0.27)]),
+        _add(model, 2, "ColumnSegment", 0, {"volume": 0.27}, [(CONCRETE, 0.27)]),
+    ]
+
+    result = await archicad_calculate(targets, "SELECT SUM(volume) FROM elements", port=fake_archicad.port)
+
+    assert result["rows"] == [[0.27]]
+    assert "warnings" not in result

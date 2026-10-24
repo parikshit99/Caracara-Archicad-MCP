@@ -82,7 +82,9 @@ def _typed_columns(fixed: dict[str, str], rows: list[dict[str, Any]]) -> dict[st
     return columns
 
 
-async def _load_tables(ids: list[dict[str, Any]], port: int, warnings: list[str]) -> list[Table]:
+async def _load_tables(
+    ids: list[dict[str, Any]], port: int, warnings: list[str], *, reads_components: bool
+) -> list[Table]:
     elements = [{"elementId": elem_id} for elem_id in ids]
     details = await call_and_collect(
         "elements_get_details_of_elements",
@@ -130,23 +132,26 @@ async def _load_tables(ids: list[dict[str, Any]], port: int, warnings: list[str]
                     "is_finish": component.get("isFinish"),
                 }
             )
+    component_rows, note = _without_doubled_owners(component_rows)
+    if note and reads_components:
+        warnings.append(note)
     return [
         Table("elements", _typed_columns(ELEMENT_COLUMNS, element_rows), element_rows),
-        Table("components", COMPONENT_COLUMNS, _without_doubled_owners(component_rows, warnings)),
+        Table("components", COMPONENT_COLUMNS, component_rows),
     ]
 
 
-def _without_doubled_owners(rows: list[dict[str, Any]], warnings: list[str]) -> list[dict[str, Any]]:
-    """Leave out the material rows of columns and beams whose segments are in the set too."""
+def _without_doubled_owners(rows: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], str | None]:
+    """Leave out the material rows of columns and beams whose segments are in the set too, and say so."""
     types = {row["type"] for row in rows}
     doubled = {owner for segment, owner in SEGMENT_OWNERS.items() if segment in types and owner in types}
     if not doubled:
-        return rows
-    warnings.append(
+        return rows, None
+    note = (
         f"'components' has no rows for {', '.join(sorted(doubled))} elements: their building materials are "
         "counted on their segments, which are in the set too."
     )
-    return [row for row in rows if row["type"] not in doubled]
+    return [row for row in rows if row["type"] not in doubled], note
 
 
 def _available(tables: list[Table]) -> dict[str, list[str]]:
@@ -192,7 +197,9 @@ async def archicad_calculate(
     warnings: list[str] = []
     if invalid:
         warnings.append(f"{len(invalid)} entries have no element GUID and were left out.")
-    tables = await _load_tables(ids, target_port, warnings)
+    # The note about column and beam materials only matters to queries that read them.
+    reads_components = sql is None or "components" in sql.lower()
+    tables = await _load_tables(ids, target_port, warnings, reads_components=reads_components)
 
     if sql is None:
         response: dict[str, Any] = {"tables": describe(tables), "units": UNITS}
