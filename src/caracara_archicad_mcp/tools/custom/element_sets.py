@@ -39,6 +39,11 @@ def element_ids(elements: list[Any]) -> tuple[list[dict[str, Any]], list[dict[st
     return ids, invalid
 
 
+def as_elements(element_ids: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """[{'guid': ...}] -> [{'elementId': {'guid': ...}}], the shape Archicad commands take."""
+    return [{"elementId": e} for e in element_ids]
+
+
 async def element_labels(guids: list[str], port: int) -> dict[str, str | None]:
     """The Element ID shown in Archicad (e.g. 'SW - 005') of each GUID, so results can name elements
     the way the user knows them; None for an element that no longer exists."""
@@ -46,7 +51,7 @@ async def element_labels(guids: list[str], port: int) -> dict[str, str | None]:
         return {}
     details = await call_and_collect(
         "elements_get_details_of_elements",
-        {"port": port, "params": {"elements": [{"elementId": {"guid": g}} for g in guids], "fields": ["id"]}},
+        {"port": port, "params": {"elements": as_elements([{"guid": g} for g in guids]), "fields": ["id"]}},
         "detailsOfElements",
     )
     if len(details) != len(guids):
@@ -55,6 +60,15 @@ async def element_labels(guids: list[str], port: int) -> dict[str, str | None]:
         guid: detail.get("id") if isinstance(detail, dict) and "error" not in detail else None
         for guid, detail in zip(guids, details, strict=True)
     }
+
+
+async def labels_or_warning(guids: list[str], port: int, warnings: list[str]) -> dict[str, str | None]:
+    """element_labels for naming listed elements; when the IDs cannot be read, none, and a warning saying so."""
+    try:
+        return await element_labels(guids, port)
+    except ToolError as error:
+        warnings.append(f"Element IDs were not read: {error}")
+        return {}
 
 
 def target_elements(target_set: str | list[Any], label: str = "target_set") -> list[Any]:
