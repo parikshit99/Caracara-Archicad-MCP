@@ -56,7 +56,7 @@
     "allow_images": {
       "type": "boolean",
       "title": "Allow pictures of the design",
-      "description": "Let the AI take screenshots of Archicad to check its work. The pictures are sent to your AI provider, like everything else the AI reads. Off by default.",
+      "description": "Let the AI take screenshots of Archicad to check its work. The pictures are uploaded to your AI provider. They help the AI check its work, but each picture uses more tokens and more of the conversation's context. Off by default.",
       "default": false,
       "required": false
     }
