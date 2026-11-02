@@ -136,8 +136,13 @@ async def _find(target: str, filter: dict[str, Any] | None, port: int) -> _Found
         raw = await call_tool_payload("elements_get_elements_by_classification", {"port": port, "params": params})
         return _from_receipt(raw, "Classified")
     if kind in ("filter", "filtered"):
-        if not filter:
-            raise ToolError("When target is 'filter', filter dictionary must be provided.")
+        if not filter or "elements" not in filter:
+            # Archicad's FilterElements only narrows a list it is given.
+            raise ToolError(
+                "When target is 'filter', filter must include 'elements' to narrow, e.g. "
+                "{'elements': [...], 'filters': ['IsVisibleIn3D']}. To filter the whole project, "
+                "use target 'all' or an element type with filter {'filters': [...]}."
+            )
         raw = await call_tool_payload("elements_filter_elements", {"port": port, "params": filter})
         return _from_receipt(raw, "Filtered")
 
@@ -182,7 +187,8 @@ async def _query_output(found: _Found, set_id: str, output: list[str] | str | No
     description=(
         "Finds elements and reads their metadata. "
         "target: an element type ('Wall', 'Slab', 'Door', ...) or 'all', 'selected', 'classified', 'filter'. "
-        "filter: optional criteria, e.g. {'filters': ['IsVisibleIn3D']} or {'classificationItemId': ...}. "
+        "filter: optional criteria, e.g. {'filters': ['IsVisibleIn3D']} with a type or 'all', "
+        "{'classificationItemId': ...}, or {'elements': [...], 'filters': [...]} with 'filter'. "
         "output: 'set' (default) returns an opaque setId and count; 'ids' returns element identifiers "
         f"(up to {MAX_INLINE_ELEMENTS}); a list of field names (e.g. ['id', 'storyIndex']) returns only those fields."
     ),
