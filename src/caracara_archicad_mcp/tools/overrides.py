@@ -217,7 +217,7 @@ def _guid(item: Any, key: str) -> str:
 
 def get_typed_property_values_of_elements(conn_header: ConnHeader, params: TypedPropertyValuesInput) -> dict:
     """Typed property values: the official API first, Tapir for the cells it cannot read (see property_values)."""
-    elements = _target_elements(params.target_set_id, params.elements)
+    elements = _target_elements(conn_header, params.target_set_id, params.elements)
     if not elements:
         raise ToolError("Give 'targetSetId' or a non-empty 'elements' list.")
     if len(elements) > MAX_TYPED_VALUE_ELEMENTS:

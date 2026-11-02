@@ -113,3 +113,19 @@ async def test_sets_made_by_tools_remember_their_project(fake_archicad):
 
     assert ResultRegistry.project_of(selected) == here
     assert ResultRegistry.project_of(near) == here
+
+
+@pytest.mark.asyncio
+async def test_the_typed_property_read_refuses_a_set_from_another_project(fake_archicad, walls_then_copy_opened):
+    set_id = await walls_then_copy_opened()
+
+    with pytest.raises(ToolError, match="query again in this one"):
+        await call_tool_payload(
+            "properties_get_typed_property_values_of_elements",
+            {
+                "port": fake_archicad.port,
+                "params": {"targetSetId": set_id, "properties": [{"propertyId": {"guid": "p"}}]},
+            },
+        )
+
+    assert [command for command, _ in fake_archicad.calls] == ["GetProjectInfo"]
