@@ -52,6 +52,14 @@ def test_a_set_compared_with_itself_counts_each_pair_once():
     assert found.matched | found.other_matched == {"a", "b"}
 
 
+def test_a_set_compared_with_itself_matches_both_elements_of_a_pair():
+    walls = [Box("a", 0, 0, 0, 4, 0.3, 3), Box("b", 4, 0, 0, 4.3, 4, 3), Box("c", 0, 4, 0, 4, 4.3, 3)]
+    found = pairs_within(walls, walls, 0.0, keep=10)
+    assert found.pair_count == 2
+    assert found.matched == {"a", "b", "c"}
+    assert found.other_matched == {"a", "b", "c"}
+
+
 @pytest.mark.parametrize("seed", range(5))
 def test_inside_matches_checking_every_container(seed):
     rng = random.Random(seed)

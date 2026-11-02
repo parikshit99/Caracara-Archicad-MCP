@@ -124,6 +124,10 @@ def pairs_within(boxes: list[Box], others: list[Box], distance: float, keep: int
                 result.pair_count += 1
                 result.matched.add(box.key)
                 result.other_matched.add(other.key)
+                if other.key in keys and box.key in index.keys:
+                    # The mirrored pair (other, box) was skipped above, but its elements match too.
+                    result.matched.add(other.key)
+                    result.other_matched.add(box.key)
                 result.nearest.append((box, other, gap))
                 if len(result.nearest) > 4 * keep:
                     result.nearest = sorted(result.nearest, key=lambda pair: pair[2])[:keep]
