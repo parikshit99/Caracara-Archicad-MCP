@@ -71,9 +71,10 @@ be checked.
 
 - **Reading property values can crash Archicad.** `GetPropertyValuesOfElements` crashed
   Archicad 29 (build 4006, Tapir 1.5.3) three times, once on a single user-defined property of
-  a single element, losing unsaved work. Caracara's own tools do not read property values, but
-  the AI can call the command directly. **Save before asking the AI to read properties** until
-  this is checked on your version.
+  a single element, losing unsaved work. `properties_get_typed_property_values_of_elements` reads
+  property values through the official API and falls back to Tapir's command, and the AI can call
+  either directly. **Save before asking the AI to read properties** until this is checked on your
+  version.
 - **Archicad can report success for changes it did not make**: for elements outside the active
   window's database, and for GDL parameters that the object's Parameter Script overrides.
 - **Official commands that list elements may leave out 2D elements** (labels, dimensions,

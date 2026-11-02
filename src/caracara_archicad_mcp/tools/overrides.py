@@ -13,16 +13,19 @@ from multiconn_archicad import ConnHeader
 from multiconn_archicad.models.official.commands import GetElementsByClassificationParameters
 from multiconn_archicad.models.tapir.commands import FilterElementsParameters, GetElementsByTypeParameters
 
+from caracara_archicad_mcp import property_values
 from caracara_archicad_mcp.field_masking import prune_payload
 from caracara_archicad_mcp.result_registry import ResultRegistry
 from caracara_archicad_mcp.tools.custom.models import (
+    MAX_TYPED_VALUE_ELEMENTS,
     DeleteElementsInput,
     GetDetailsOfElementsInput,
     GetDetailsOfPropertiesInput,
     HighlightElementsInput,
     SetPropertyValuesOfElementsInput,
+    TypedPropertyValuesInput,
 )
-from caracara_archicad_mcp.tools.tool_registry import override_tool_for_dispatch
+from caracara_archicad_mcp.tools.tool_registry import override_tool_for_dispatch, register_tool_for_dispatch
 
 # Fields GetDetailsOfElements can project server-side; anything else is pruned client-side.
 SERVER_DETAIL_FIELDS = {
@@ -189,6 +192,61 @@ def get_details_of_properties(conn_header: ConnHeader, params: GetDetailsOfPrope
     return prune_payload(raw_result, params.fields) if params.fields else raw_result
 
 
+def _guid(item: Any, key: str) -> str:
+    guid = item.get(key, {}).get("guid") if isinstance(item, dict) else None
+    if not isinstance(guid, str):
+        raise ToolError(f"Each entry needs {{'{key}': {{'guid': ...}}}}; got {str(item)[:80]}.")
+    return guid
+
+
+def get_typed_property_values_of_elements(conn_header: ConnHeader, params: TypedPropertyValuesInput) -> dict:
+    """Typed property values: the official API first, Tapir for the cells it cannot read (see property_values)."""
+    elements = _target_elements(params.target_set_id, params.elements)
+    if not elements:
+        raise ToolError("Give 'targetSetId' or a non-empty 'elements' list.")
+    if len(elements) > MAX_TYPED_VALUE_ELEMENTS:
+        raise ToolError(f"{len(elements)} elements; read at most {MAX_TYPED_VALUE_ELEMENTS} at a time.")
+    element_guids = list(dict.fromkeys(_guid(e, "elementId") for e in elements))
+    property_guids = list(dict.fromkeys(_guid(p, "propertyId") for p in params.properties))
+    element_ids = [{"elementId": {"guid": g}} for g in element_guids]
+    property_ids = [{"propertyId": {"guid": g}} for g in property_guids]
+
+    found = property_values.definitions(
+        conn_header.core.post_command(command="API.GetDetailsOfProperties", parameters={"properties": property_ids}),
+        property_guids,
+    )
+    rows = property_values.official_rows(
+        conn_header.core.post_command(
+            command="API.GetPropertyValuesOfElements",
+            parameters={"elements": element_ids, "properties": property_ids},
+        ),
+        element_guids,
+        property_guids,
+        found,
+    )
+    unreadable: list[str] = []
+    if pending := [guid for guid, row in rows.items() if None in row]:
+        unreadable = property_values.fill_from_tapir(
+            rows,
+            conn_header.core.post_tapir_command(
+                command="GetPropertyValuesOfElements",
+                parameters={"elements": [{"elementId": {"guid": g}} for g in pending], "properties": property_ids},
+            ),
+            pending,
+        )
+    columns = [{"propertyId": {"guid": g}, "valueType": found[g].value_type} for g in property_guids]
+    for column, guid in zip(columns, property_guids, strict=True):
+        if unit := found[guid].unit():
+            column["unit"] = unit
+    result: dict[str, Any] = {
+        "properties": columns,
+        "elements": [{"elementId": {"guid": guid}, "values": row} for guid, row in rows.items()],
+    }
+    if unreadable:
+        result["unreadable"] = [{"elementId": {"guid": guid}} for guid in unreadable]
+    return result
+
+
 override_tool_for_dispatch(
     "elements_get_elements_by_type",
     get_elements_by_type,
@@ -245,4 +303,20 @@ override_tool_for_dispatch(
     get_details_of_properties,
     GetDetailsOfPropertiesInput,
     description="Returns the details of property definitions with optional field projection.",
+)
+register_tool_for_dispatch(
+    get_typed_property_values_of_elements,
+    name="properties_get_typed_property_values_of_elements",
+    title="GetTypedPropertyValuesOfElements",
+    description=(
+        "Reads property values of up to 500 elements (targetSetId or elements) and 20 properties "
+        "([{'propertyId': {'guid': ...}}]) as typed values: numbers in SI units (each property's 'unit'), enum "
+        "values as their display text, and a 'status' instead of a value when the user left it undefined "
+        "(userUndefined), the property does not apply to the element (notAvailable) or Archicad could not "
+        "evaluate it (notEvaluated). Uses the official API, and Tapir's display strings ('typed': false) for "
+        "sub-elements and drafting elements the official API cannot read. Each element's 'values' follow the "
+        "order of 'properties'. Prefer it to properties_get_property_values_of_elements, which returns display "
+        "strings and may report built-in values as not available."
+    ),
+    params_model=TypedPropertyValuesInput,
 )
