@@ -47,6 +47,12 @@ jobs:
           STATUS: ${{ steps.compare.outputs.status }}
         # Comments only when the findings change, so a repeated weekly result stays quiet.
         run: |
+          if [[ "$(gh repo view "$GITHUB_REPOSITORY" --json hasIssuesEnabled --jq .hasIssuesEnabled)" != "true" ]]; then
+            # Issues are off for this repository: the report is in the job summary, and a red run is the alert.
+            echo "Issues are disabled; not keeping a tracking issue."
+            [[ "$STATUS" == "0" ]]
+            exit
+          fi
           NUMBER=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --search "\"$TITLE\" in:title" \
             --json number,title --jq "map(select(.title == env.TITLE))[0].number // empty")
           RUN_LINK="[workflow run]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID)"

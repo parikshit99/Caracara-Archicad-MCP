@@ -90,6 +90,12 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
         python-version: ["3.12", "3.13", "3.14"]
+        # macOS runs one Python: its runners are scarce, and three per push left jobs queued until cancelled.
+        exclude:
+          - os: macos-latest
+            python-version: "3.12"
+          - os: macos-latest
+            python-version: "3.14"
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     steps:
