@@ -60,7 +60,9 @@ async def archicad_find_properties(query: str, limit: int = 10, port: int | None
         raise ToolError(f"limit must be between 1 and {MAX_RESULTS}.")
     definitions = [
         item
-        for item in await call_and_collect("properties_get_all_properties", {"port": port or 19723}, "properties")
+        for item in await call_and_collect(
+            "properties_get_all_properties", {"port": port or 19723, "params": {}}, "properties"
+        )
         if isinstance(item, dict)
     ]
     scored = [
