@@ -108,6 +108,24 @@ async def test_dispatch_refuses_write_path_outside_root(fake_archicad, output_ro
     assert fake_archicad.calls == []
 
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("tool", "params", "field"),
+    [
+        ("project_photo_render", {}, "imageFilePath"),
+        ("library_create_library_part", {"ancestorSubtype": "Object"}, "path"),
+    ],
+)
+async def test_tapir_1_8_commands_that_write_files_are_confined(
+    fake_archicad, output_root, tmp_path, tool, params, field
+):
+    with pytest.raises(ToolError, match="outside the allowed output directory"):
+        await archicad_call_tool(
+            tool, {"port": fake_archicad.port, "params": {**params, field: str(tmp_path / "x.png")}}
+        )
+    assert fake_archicad.calls == []
+
+
 # --- Memory bounds ------------------------------------------------------------
 
 

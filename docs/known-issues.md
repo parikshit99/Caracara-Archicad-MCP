@@ -55,8 +55,11 @@ These are how Caracara works today, not bugs.
 - **A set works only in its own project.** A `setId` is refused on another port, or after another
   project was opened there, even a copy of the same file. Unsaved projects all look the same to
   Archicad, so a set from one unsaved project is not refused in another.
-- **`inside` uses bounding boxes.** `archicad_spatial_query(relation="inside")` can count an
-  element just outside an L-shaped or diagonal zone. `collides` uses Archicad's exact check.
+- **`inside` is exact only for zones and slabs with straight edges.** `archicad_spatial_query(relation="inside")`
+  tests those by their plan outline and holes. Containers with curved edges, and every other
+  element type, are tested by their bounding box, which can count an element just outside a
+  curved or diagonal container. An element counts by the center of its bounding box. `collides`
+  uses Archicad's exact check. Not yet checked against a live Archicad.
 - **No custom properties in calculations.** `archicad_calculate` has element details and
   Archicad's quantities, but not user-defined properties such as fire ratings or cost codes.
 - **Screenshots are for context.** The AI cannot judge exact sizes or positions from a picture.

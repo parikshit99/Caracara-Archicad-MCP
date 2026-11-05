@@ -102,6 +102,14 @@ Check each of these after every upstream merge.
   it costs no tokens in conversations that do not use it. At most 500 elements and 20 properties a
   call keep the answer readable. Tapir's own command stays available unchanged.
 
+- **`inside` tests zone and slab outlines, but not arcs** (2026-11-02, maintainer). Bounding boxes
+  counted elements in the cut-away corner of an L-shaped zone. `inside` now reads the plan
+  outline and holes of zones and slabs (one GetDetailsOfElements call, only `type` and
+  `details`) and tests the element's box center against them. Arcs are given only as angles,
+  and their direction has not been checked in Archicad, so a container with a curved edge keeps
+  its bounding box; the result says how many containers were tested each way. The outlines stay
+  in the server; only counts and sets are returned.
+
 ### Privacy and tokens
 
 - **Pictures are off by default** (2026-10-23, Caracara). The screenshot tool is offered only
@@ -112,6 +120,12 @@ Check each of these after every upstream merge.
 - **A few general tools instead of one tool per task** (Caracara). Tool definitions are sent in
   every conversation; Caracara has about ten. alesdev88/Archicad-MCP chose the other way, with
   about sixty dedicated tools, and checks each task more closely as a result.
+- **`archicad_find_properties` instead of listing every property** (2026-11-02, maintainer).
+  Archicad has about 1,600 built-in properties; listing them all to find one fills the
+  conversation. The tool reads them in the server and returns the closest names, scored with the
+  standard library's difflib, so no dependency is added (R11). It covers property definitions
+  only, not attributes such as layers or materials, and never reads property values, which the
+  property-read check on the roadmap is about.
 - **Element sets instead of GUID lists** (Caracara). Element lists
   stay in the server behind a `setId`, so large selections do not fill the conversation.
   Sets are snapshots and do not follow later changes in Archicad; results report the set's age
