@@ -50,6 +50,18 @@ IRREVERSIBLE_COMMANDS = {
     "OpenProject": "replaces the open project in this Archicad",
     "PublishPublisherSet": "publishes drawings, possibly to other people, and cannot be undone",
     "PrintView": "prints on paper",
+    "PhotoRender": "writes an image file, replacing any file already at that path, and cannot be undone",
+    "UploadLibrariesToBIMcloud": "puts libraries on the BIMcloud server for other projects and cannot be undone",
+    "ResetLibraries": "reloads the project's libraries and cannot be undone",
+    **dict.fromkeys(
+        (
+            "CreateLibraryPart",
+            "SetLibraryPartPictures",
+            "SetLibraryPartMetadata",
+            "SetLibraryPartCustomSection",
+        ),
+        "writes a library part file and cannot be undone",
+    ),
 }
 
 

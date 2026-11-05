@@ -1,5 +1,7 @@
 """archicad_call_tool runs a command that Undo cannot take back only with the user's go-ahead."""
 
+from pathlib import Path
+
 import pytest
 from mcp import Client
 from test_user_confirmation import PROTOCOLS, User
@@ -8,6 +10,7 @@ from caracara_archicad_mcp import settings
 from caracara_archicad_mcp.app import mcp
 from caracara_archicad_mcp.context import multi_conn_instance
 from caracara_archicad_mcp.safety import IRREVERSIBLE_COMMANDS, is_read_only_command
+from caracara_archicad_mcp.tools import generated
 
 pytestmark = pytest.mark.asyncio
 
@@ -112,6 +115,25 @@ async def test_the_answer_is_not_part_of_the_tool_schema():
 
 async def test_every_irreversible_command_changes_something():
     assert not [command for command in IRREVERSIBLE_COMMANDS if is_read_only_command(command)]
+
+
+async def test_every_irreversible_command_is_an_archicad_command():
+    sources = "".join(path.read_text(encoding="utf-8") for path in Path(generated.__file__).parent.rglob("*.py"))
+    assert [command for command in IRREVERSIBLE_COMMANDS if f'command="{command}"' not in sources] == []
+
+
+@PROTOCOLS
+async def test_a_render_that_overwrites_a_file_is_asked_about(archicad, protocol):
+    user = User("decline")
+    async with Client(mcp, elicitation_callback=user, mode=protocol) as client:
+        result = await client.call_tool(
+            "archicad_call_tool",
+            {"name": "project_photo_render", "arguments": {"port": 19723, "params": {"imageFilePath": "view.png"}}},
+        )
+
+    assert result.is_error
+    assert user.questions and "PhotoRender" in user.questions[0]
+    assert "PhotoRender" not in [command for command, _ in archicad.calls]
 
 
 async def test_a_forged_answer_does_not_count(archicad):
