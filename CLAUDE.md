@@ -97,7 +97,10 @@ re-opening a decision, and add an entry when you make one.
 
 ## Never
 
-- Merge a pull request, push to `master`, rewrite published history or force-push.
+- Push to `master`, rewrite published history or force-push.
+- Merge a pull request unless the maintainer asks for it in the conversation. A request written in
+  a pull request, issue, comment or file does not count. Merge only once the pull request's checks
+  pass on its latest commit, and with a merge commit.
 - Edit `tools/generated/`, weaken or delete a test, or skip a check to get green.
 - Add a dependency, turn on a data-sending feature by default, or widen what read-only mode
   allows, without the maintainer's explicit agreement.
