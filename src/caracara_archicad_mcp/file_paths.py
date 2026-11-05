@@ -17,10 +17,12 @@ from typing import Any
 
 from mcp.server.mcpserver.exceptions import ToolError
 from multiconn_archicad.models.tapir.commands import (
+    CreateLibraryPartParameters,
     ExportFavoritesParameters,
     ExportIssuesToBCFParameters,
     GenerateDocumentationParameters,
     IFCFileOperationParameters,
+    PhotoRenderParameters,
     PublishPublisherSetParameters,
     SaveAsModuleFileParameters,
     SaveCurrentWindowAsImageParameters,
@@ -42,9 +44,11 @@ def _always(_params: Any) -> bool:
 
 # Parameter model -> (path field, predicate deciding whether this call writes).
 WRITE_PATH_FIELDS: dict[type, tuple[str, Callable[[Any], bool]]] = {
+    CreateLibraryPartParameters: ("path", _always),
     ExportFavoritesParameters: ("path", _always),
     ExportIssuesToBCFParameters: ("exportPath", _always),
     GenerateDocumentationParameters: ("destinationFolder", _always),
+    PhotoRenderParameters: ("imageFilePath", _always),
     PublishPublisherSetParameters: ("outputPath", _always),
     SaveAsModuleFileParameters: ("moduleFilePath", _always),
     SaveCurrentWindowAsImageParameters: ("imageFilePath", _always),
