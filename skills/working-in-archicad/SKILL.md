@@ -59,8 +59,9 @@ Do not describe the model as if you had read it.
   `archicad_read_tool`. Report `userUndefined`, `notAvailable` and `notEvaluated` as what they
   are, never as empty. Values marked `"typed": false` are Archicad's display text, not numbers.
 - Teamwork send and receive, reserving and releasing, saving, opening a project, publishing,
-  printing, rendering to a file and changing library parts or BIMcloud libraries cannot be undone. Ask the user first, then add `"confirm": true` to the arguments. In
-  clients that can ask the user directly, Caracara asks them itself and `confirm` does not count.
+  printing and changing library parts or BIMcloud libraries cannot be undone. Ask the user
+  first, then add `"confirm": true` to the arguments. In clients that can ask the user directly,
+  Caracara asks them itself and `confirm` does not count.
 - A long command returns a `jobHandle`; follow it with `archicad_get_job`. After a lost
   response, call `archicad_get_job` with no handle to see whether the command ran before you
   send a change again. Never send the same change twice to be safe.

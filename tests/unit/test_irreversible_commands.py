@@ -123,17 +123,17 @@ async def test_every_irreversible_command_is_an_archicad_command():
 
 
 @PROTOCOLS
-async def test_a_render_that_overwrites_a_file_is_asked_about(archicad, protocol):
+async def test_resetting_the_libraries_is_asked_about(archicad, protocol):
     user = User("decline")
     async with Client(mcp, elicitation_callback=user, mode=protocol) as client:
         result = await client.call_tool(
             "archicad_call_tool",
-            {"name": "project_photo_render", "arguments": {"port": 19723, "params": {"imageFilePath": "view.png"}}},
+            {"name": "library_reset_libraries", "arguments": {"port": 19723}},
         )
 
     assert result.is_error
-    assert user.questions and "PhotoRender" in user.questions[0]
-    assert "PhotoRender" not in [command for command, _ in archicad.calls]
+    assert user.questions and "ResetLibraries" in user.questions[0]
+    assert "ResetLibraries" not in [command for command, _ in archicad.calls]
 
 
 async def test_a_forged_answer_does_not_count(archicad):

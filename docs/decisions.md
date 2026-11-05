@@ -70,8 +70,9 @@ Check each of these after every upstream merge.
   to a person; that is the client's choice and outside Caracara's control.
 - **Commands Undo cannot take back wait for the user** (2026-11-02, idea from DaviiiiiDave's fork).
   `archicad_call_tool` ran Teamwork send and receive, reserving and releasing, saving, opening a
-  project, publishing and printing as soon as the AI asked. They reach other people or cannot be
-  undone, so they now run only with the user's go-ahead, asked the same way as for
+  project, publishing and printing as soon as the AI asked; Tapir 1.8.0 added changing library
+  part files, uploading libraries to BIMcloud and resetting the libraries. They reach other people
+  or cannot be undone, so they now run only with the user's go-ahead, asked the same way as for
   `archicad_mutate`: directly where the client can ask, otherwise `"confirm": true`. The list is
   short on purpose (`IRREVERSIBLE_COMMANDS` in `safety.py`); deletes and other model changes can be
   undone and are left to `archicad_mutate`'s checks. Exports into the output folder are not on it.
