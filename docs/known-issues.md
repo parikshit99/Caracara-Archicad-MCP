@@ -52,6 +52,9 @@ These are how Caracara works today, not bugs.
 - **Element sets are snapshots.** A `setId` keeps the elements found at query time. Elements
   drawn later are not in it, and deleted ones are reported as missing. Results give the set's
   age (`setAgeSeconds`); query again when it matters. Unused sets expire after an hour.
+- **A set works only in its own project.** A `setId` is refused on another port, or after another
+  project was opened there, even a copy of the same file. Unsaved projects all look the same to
+  Archicad, so a set from one unsaved project is not refused in another.
 - **`inside` is exact only for zones and slabs with straight edges.** `archicad_spatial_query(relation="inside")`
   tests those by their plan outline and holes. Containers with curved edges, and every other
   element type, are tested by their bounding box, which can count an element just outside a

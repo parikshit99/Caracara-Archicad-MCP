@@ -37,7 +37,7 @@ Do not describe the model as if you had read it.
 - To find a property by the name the user uses, call `archicad_find_properties` instead of
   listing every property.
 - Sets are snapshots. When a result shows `missingCount` above zero or the model may have
-  changed, query again.
+  changed, query again. A set is refused after another project is opened; query again there.
 
 ## Change
 
