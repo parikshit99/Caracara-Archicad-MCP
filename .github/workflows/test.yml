@@ -88,9 +88,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        # macOS runners are scarce on this account: queued macOS jobs were cancelled unrun and turned
+        # every push red. Pushes and pull requests test on Ubuntu and Windows; the weekly and monthly
+        # builds and manual runs, which gate every release, add macOS with one Python.
+        os: >-
+          ${{ fromJSON(contains(fromJSON('["push", "pull_request"]'), github.event_name)
+          && '["ubuntu-latest", "windows-latest"]'
+          || '["ubuntu-latest", "windows-latest", "macos-latest"]') }}
         python-version: ["3.12", "3.13", "3.14"]
-        # macOS runs one Python: its runners are scarce, and three per push left jobs queued until cancelled.
         exclude:
           - os: macos-latest
             python-version: "3.12"
