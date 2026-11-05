@@ -41,7 +41,8 @@ against a live Archicad and is built only if the check shows a problem.
   It downloads from GitHub, so it needs the maintainer's agreement (R13), and it would not be a
   tool the AI can call.
 - **Custom properties in `archicad_calculate`.** Fire ratings, cost codes and other
-  user-defined properties as table columns. Depends on the property-read check above.
+  user-defined properties as table columns, from the typed property read. Depends on the
+  property-read check above.
 - **Find elements by property value**, in the style of Find & Select ("walls whose fire rating
   is empty"). Archicad cannot filter by property value itself, so this reads values and
   depends on the property-read check.

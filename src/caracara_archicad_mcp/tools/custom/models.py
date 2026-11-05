@@ -188,3 +188,29 @@ class GetDetailsOfPropertiesInput(BaseModel):
         default=None,
         description="Optional filter for fields to return for each property.",
     )
+
+
+# A typed property read covers at most this many elements and properties, which keeps the answer readable.
+MAX_TYPED_VALUE_ELEMENTS = 500
+MAX_TYPED_VALUE_PROPERTIES = 20
+
+
+class TypedPropertyValuesInput(BaseModel):
+    """Parameters for reading typed property values of a set or a list of elements."""
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    target_set_id: str | None = Field(
+        default=None,
+        alias="targetSetId",
+        description="Optional target set ID handle referencing an active element collection in ResultRegistry.",
+    )
+    elements: list[Any] | None = Field(
+        default=None,
+        description="Explicit list of elements, [{'elementId': {'guid': ...}}] (alternative to targetSetId).",
+    )
+    properties: list[Any] = Field(
+        min_length=1,
+        max_length=MAX_TYPED_VALUE_PROPERTIES,
+        description="The properties to read, [{'propertyId': {'guid': ...}}].",
+    )
