@@ -117,6 +117,15 @@ async def test_archicad_query_all_elements_with_filters(fake_archicad):
 
 
 @pytest.mark.asyncio
+async def test_archicad_query_filter_without_elements_points_to_all(fake_archicad):
+    """FilterElements needs a list to narrow, so filters alone are refused before reaching Archicad."""
+    with pytest.raises(ToolError, match="use target 'all'"):
+        await archicad_query(target="filter", filter={"filters": ["IsVisibleIn3D"]}, port=fake_archicad.port)
+
+    assert fake_archicad.calls == []
+
+
+@pytest.mark.asyncio
 async def test_archicad_mutate_delete_via_target_set(fake_archicad):
     """Verifies archicad_mutate routes delete action for a target_set."""
     elements = [{"elementId": {"guid": "00000000-0000-0000-0000-0000000000e1"}}]
