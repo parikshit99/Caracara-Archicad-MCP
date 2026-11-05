@@ -55,6 +55,9 @@ Do not describe the model as if you had read it.
 - For anything else, find the command with `archicad_list_commands`, read its arguments with
   `archicad_get_command_schema`, and do not guess fields. Send commands that only read (`Get…`,
   `Is…`, `Filter…`) with `archicad_read_tool`, and the rest with `archicad_call_tool`.
+- To read property values, use `properties_get_typed_property_values_of_elements` through
+  `archicad_read_tool`. Report `userUndefined`, `notAvailable` and `notEvaluated` as what they
+  are, never as empty. Values marked `"typed": false` are Archicad's display text, not numbers.
 - Teamwork send and receive, reserving and releasing, saving, opening a project, publishing and
   printing cannot be undone. Ask the user first, then add `"confirm": true` to the arguments. In
   clients that can ask the user directly, Caracara asks them itself and `confirm` does not count.

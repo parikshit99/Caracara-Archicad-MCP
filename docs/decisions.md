@@ -93,6 +93,15 @@ Check each of these after every upstream merge.
   type; one `archicad_mutate` delete of the set removes it all. Creating adds and destroys nothing,
   so the tool is not marked destructive (R17).
 
+- **Property values are read through the official API first** (2026-11-02, idea from DaviiiiiDave's
+  fork). Their recording on Archicad 29 shows Tapir's `GetPropertyValuesOfElements` answering
+  "not available" for built-in values of a wall that the official command read, typed and with a
+  status. The official command rejects sub-elements and drafting elements, so those cells fall back
+  to Tapir and are marked untyped. It is a hand-written dispatch command
+  (`properties_get_typed_property_values_of_elements`, in `tools/overrides.py`), not a new tool, so
+  it costs no tokens in conversations that do not use it. At most 500 elements and 20 properties a
+  call keep the answer readable. Tapir's own command stays available unchanged.
+
 ### Privacy and tokens
 
 - **Pictures are off by default** (2026-10-23, Caracara). The screenshot tool is offered only
