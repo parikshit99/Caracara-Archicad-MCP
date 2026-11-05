@@ -68,6 +68,14 @@ Check each of these after every upstream merge.
   the AI's `confirm`, so the AI cannot answer for the user. Saying no changes nothing. Clients
   without elicitation keep `confirm=true`. A client may answer such questions without showing them
   to a person; that is the client's choice and outside Caracara's control.
+- **Commands Undo cannot take back wait for the user** (2026-11-02, idea from DaviiiiiDave's fork).
+  `archicad_call_tool` ran Teamwork send and receive, reserving and releasing, saving, opening a
+  project, publishing and printing as soon as the AI asked; Tapir 1.8.0 added changing library
+  part files, uploading libraries to BIMcloud and resetting the libraries. They reach other people
+  or cannot be undone, so they now run only with the user's go-ahead, asked the same way as for
+  `archicad_mutate`: directly where the client can ask, otherwise `"confirm": true`. The list is
+  short on purpose (`IRREVERSIBLE_COMMANDS` in `safety.py`); deletes and other model changes can be
+  undone and are left to `archicad_mutate`'s checks. Exports into the output folder are not on it.
 - **A set works only in the project it came from** (2026-11-02, idea from DaviiiiiDave's fork).
   A GUID means something only in its own project, and a copy of a file keeps the original's GUIDs,
   so a set used after another project was opened, or on another Archicad, could address the wrong
