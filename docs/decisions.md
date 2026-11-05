@@ -95,6 +95,14 @@ Check each of these after every upstream merge.
   it costs no tokens in conversations that do not use it. At most 500 elements and 20 properties a
   call keep the answer readable. Tapir's own command stays available unchanged.
 
+- **`inside` tests zone and slab outlines, but not arcs** (2026-11-02, maintainer). Bounding boxes
+  counted elements in the cut-away corner of an L-shaped zone. `inside` now reads the plan
+  outline and holes of zones and slabs (one GetDetailsOfElements call, only `type` and
+  `details`) and tests the element's box center against them. Arcs are given only as angles,
+  and their direction has not been checked in Archicad, so a container with a curved edge keeps
+  its bounding box; the result says how many containers were tested each way. The outlines stay
+  in the server; only counts and sets are returned.
+
 ### Privacy and tokens
 
 - **Pictures are off by default** (2026-10-23, Caracara). The screenshot tool is offered only
