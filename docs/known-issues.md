@@ -36,7 +36,7 @@ Problems the live test found, all fixed since:
   a Teamwork project.
 - **Large models.** How long queries, calculations and changes take on tens of thousands of
   elements, and whether Archicad stops responding meanwhile.
-- **Commands outside `archicad_query` and `archicad_mutate`.** Most of the 458 commands are
+- **Commands outside `archicad_query` and `archicad_mutate`.** Most of the 671 commands are
   generated from their published schemas and validated, but have not each been run live.
 - **`archicad_build`.** Written and tested against the create commands' schemas, not yet run on
   a live Archicad: how doors are placed along their wall, and which tool defaults fill the
@@ -74,9 +74,10 @@ be checked.
 
 - **Reading property values can crash Archicad.** `GetPropertyValuesOfElements` crashed
   Archicad 29 (build 4006, Tapir 1.5.3) three times, once on a single user-defined property of
-  a single element, losing unsaved work. Caracara's own tools do not read property values, but
-  the AI can call the command directly. **Save before asking the AI to read properties** until
-  this is checked on your version.
+  a single element, losing unsaved work. `properties_get_typed_property_values_of_elements` reads
+  property values through the official API and falls back to Tapir's command, and the AI can call
+  either directly. **Save before asking the AI to read properties** until this is checked on your
+  version.
 - **Archicad can report success for changes it did not make**: for elements outside the active
   window's database, and for GDL parameters that the object's Parameter Script overrides.
 - **Official commands that list elements may leave out 2D elements** (labels, dimensions,
