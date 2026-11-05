@@ -76,6 +76,13 @@ Check each of these after every upstream merge.
   `archicad_mutate`: directly where the client can ask, otherwise `"confirm": true`. The list is
   short on purpose (`IRREVERSIBLE_COMMANDS` in `safety.py`); deletes and other model changes can be
   undone and are left to `archicad_mutate`'s checks. Exports into the output folder are not on it.
+- **A set works only in the project it came from** (2026-11-02, idea from DaviiiiiDave's fork).
+  A GUID means something only in its own project, and a copy of a file keeps the original's GUIDs,
+  so a set used after another project was opened, or on another Archicad, could address the wrong
+  elements without any error. Each set remembers its port and project, and every use asks Archicad
+  which project is open (`GetProjectInfo`, one read) and refuses a mismatch. Archicad cannot tell
+  unsaved projects apart, so those all count as the same project. A list of elements the AI passes
+  itself has no known origin and is not checked.
 - **Elements are never reserved automatically in Teamwork** (2026-10-23, Caracara). Reserving
   changes what the rest of the team can do, so it stays a person's decision.
 - **Large changes are never split into batches** (2026-10-24, Caracara, against an outside
@@ -103,6 +110,14 @@ Check each of these after every upstream merge.
   it costs no tokens in conversations that do not use it. At most 500 elements and 20 properties a
   call keep the answer readable. Tapir's own command stays available unchanged.
 
+- **`inside` tests zone and slab outlines, but not arcs** (2026-11-02, maintainer). Bounding boxes
+  counted elements in the cut-away corner of an L-shaped zone. `inside` now reads the plan
+  outline and holes of zones and slabs (one GetDetailsOfElements call, only `type` and
+  `details`) and tests the element's box center against them. Arcs are given only as angles,
+  and their direction has not been checked in Archicad, so a container with a curved edge keeps
+  its bounding box; the result says how many containers were tested each way. The outlines stay
+  in the server; only counts and sets are returned.
+
 ### Privacy and tokens
 
 - **Pictures are off by default** (2026-10-23, Caracara). The screenshot tool is offered only
@@ -113,6 +128,12 @@ Check each of these after every upstream merge.
 - **A few general tools instead of one tool per task** (Caracara). Tool definitions are sent in
   every conversation; Caracara has about ten. alesdev88/Archicad-MCP chose the other way, with
   about sixty dedicated tools, and checks each task more closely as a result.
+- **`archicad_find_properties` instead of listing every property** (2026-11-02, maintainer).
+  Archicad has about 1,600 built-in properties; listing them all to find one fills the
+  conversation. The tool reads them in the server and returns the closest names, scored with the
+  standard library's difflib, so no dependency is added (R11). It covers property definitions
+  only, not attributes such as layers or materials, and never reads property values, which the
+  property-read check on the roadmap is about.
 - **Element sets instead of GUID lists** (Caracara). Element lists
   stay in the server behind a `setId`, so large selections do not fill the conversation.
   Sets are snapshots and do not follow later changes in Archicad; results report the set's age

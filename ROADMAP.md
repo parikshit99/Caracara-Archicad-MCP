@@ -43,15 +43,11 @@ against a live Archicad and is built only if the check shows a problem.
 - **Custom properties in `archicad_calculate`.** Fire ratings, cost codes and other
   user-defined properties as table columns, from the typed property read. Depends on the
   property-read check above.
-- **Find properties by name.** A fuzzy search over property and attribute definitions, so the
-  AI finds "Fire Rating" without listing all 1,600 built-in properties first.
 - **Find elements by property value**, in the style of Find & Select ("walls whose fire rating
   is empty"). Archicad cannot filter by property value itself, so this reads values and
   depends on the property-read check.
 - **Office rules.** Checks against an office standard written as YAML (required properties,
   classifications, layers), with a pass or fail per rule and the failing elements as a set.
-- **Exact shapes for `archicad_spatial_query`.** `inside` uses bounding boxes, so L-shaped and
-  diagonal zones can include elements just outside them.
 - **Schedules.** Archicad has no schedule API; another server reads and edits Scheme Settings'
   XML export. Only if people ask for it.
 

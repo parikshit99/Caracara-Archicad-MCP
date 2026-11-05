@@ -19,7 +19,12 @@ from mcp.types import ToolAnnotations
 from caracara_archicad_mcp.app import mcp
 from caracara_archicad_mcp.result_registry import ResultRegistry
 from caracara_archicad_mcp.safety import ensure_allowed
-from caracara_archicad_mcp.tools.custom.element_sets import element_ids, normalize_element_type, target_elements
+from caracara_archicad_mcp.tools.custom.element_sets import (
+    element_ids,
+    normalize_element_type,
+    open_project,
+    target_elements,
+)
 from caracara_archicad_mcp.tools.custom.functions import call_tool_payload, is_running
 from caracara_archicad_mcp.tools.custom.mutation_checks import (
     confirmation_reasons,
@@ -129,8 +134,13 @@ async def _find(target: str, filter: dict[str, Any] | None, port: int) -> _Found
         raw = await call_tool_payload("elements_get_elements_by_classification", {"port": port, "params": params})
         return _from_receipt(raw, "Classified")
     if kind in ("filter", "filtered"):
-        if not filter:
-            raise ToolError("When target is 'filter', filter dictionary must be provided.")
+        if not filter or "elements" not in filter:
+            # Archicad's FilterElements only narrows a list it is given.
+            raise ToolError(
+                "When target is 'filter', filter must include 'elements' to narrow, e.g. "
+                "{'elements': [...], 'filters': ['IsVisibleIn3D']}. To filter the whole project, "
+                "use target 'all' or an element type with filter {'filters': [...]}."
+            )
         raw = await call_tool_payload("elements_filter_elements", {"port": port, "params": filter})
         return _from_receipt(raw, "Filtered")
 
@@ -175,7 +185,8 @@ async def _query_output(found: _Found, set_id: str, output: list[str] | str | No
     description=(
         "Finds elements and reads their metadata. "
         "target: an element type ('Wall', 'Slab', 'Door', ...) or 'all', 'selected', 'classified', 'filter'. "
-        "filter: optional criteria, e.g. {'filters': ['IsVisibleIn3D']} or {'classificationItemId': ...}. "
+        "filter: optional criteria, e.g. {'filters': ['IsVisibleIn3D']} with a type or 'all', "
+        "{'classificationItemId': ...}, or {'elements': [...], 'filters': [...]} with 'filter'. "
         "output: 'set' (default) returns an opaque setId and count; 'ids' returns element identifiers "
         f"(up to {MAX_INLINE_ELEMENTS}); a list of field names (e.g. ['id', 'storyIndex']) returns only those fields."
     ),
@@ -200,7 +211,8 @@ async def archicad_query(
         return found.raw
     set_id = found.set_id
     if not set_id or not ResultRegistry.has(set_id):
-        set_id = ResultRegistry.register(found.elements, element_type=found.element_type)
+        project = await open_project(target_port)
+        set_id = ResultRegistry.register(found.elements, element_type=found.element_type, project=project)
     return await _query_output(found, set_id, output, target_port)
 
 
@@ -371,7 +383,7 @@ async def _ask_user(
         return None
     try:
         ensure_allowed(ACTION_COMMANDS[run_action], can_preview=True)
-        ids, _ = element_ids(target_elements(target_set))
+        ids, _ = element_ids(await target_elements(target_set, port or 19723))
     except ToolError:
         # archicad_mutate raises the same error itself, so there is nothing to ask about.
         return None
@@ -450,11 +462,12 @@ async def archicad_mutate(
         )
     if not dry_run:
         ensure_allowed(ACTION_COMMANDS[run_action], can_preview=True)
-    elements = target_elements(target_set)
+    target_port = port or 19723
+    elements = await target_elements(target_set, target_port)
     # An explicit element list gets a set of its own, so set-based commands can address it.
+    # Its origin is unknown, so it is not tied to a project.
     set_id = target_set if isinstance(target_set, str) else ResultRegistry.register(elements)
     ids, invalid = element_ids(elements)
-    target_port = port or 19723
     if dry_run:
         report = await preflight(
             action,

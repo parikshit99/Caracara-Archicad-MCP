@@ -2,9 +2,10 @@
 
 'near' and 'inside' use the elements' 3D bounding boxes from Archicad and a spatial index
 (caracara_archicad_mcp.spatial), so thousands of elements are compared in a fraction of a
-second. Boxes approximate the shapes. 'collides' asks Archicad for an exact check of the real
-geometry instead (GetCollisions). The matching elements come back as new element sets, ready
-for archicad_query, archicad_calculate or archicad_mutate.
+second. Boxes approximate the shapes, so 'inside' also tests the plan outline of zones and
+slabs. 'collides' asks Archicad for an exact check of the real geometry instead
+(GetCollisions). The matching elements come back as new element sets, ready for
+archicad_query, archicad_calculate or archicad_mutate.
 """
 
 from __future__ import annotations
@@ -16,17 +17,25 @@ from mcp.server.mcpserver.exceptions import ToolError
 from mcp.types import ToolAnnotations
 
 from caracara_archicad_mcp.app import mcp
-from caracara_archicad_mcp.result_registry import ResultRegistry
-from caracara_archicad_mcp.spatial import Box, containers_of, pairs_within
-from caracara_archicad_mcp.tools.custom.element_sets import as_elements, element_ids, labels_or_warning, target_elements
+from caracara_archicad_mcp.result_registry import ResultRegistry, SetProject
+from caracara_archicad_mcp.spatial import Box, Outline, Point2D, containers_of, pairs_within
+from caracara_archicad_mcp.tools.custom.element_sets import (
+    as_elements,
+    element_ids,
+    labels_or_warning,
+    open_project,
+    target_elements,
+)
 from caracara_archicad_mcp.tools.custom.functions import call_and_wait
 
 MAX_ELEMENTS = 100_000
 MAX_LISTED = 20
+# Element types whose plan outline is the area they enclose.
+OUTLINE_TYPES = ("Zone", "Slab")
 
 
-def _resolve(target: str | list[Any], label: str) -> list[dict[str, Any]]:
-    ids, _ = element_ids(target_elements(target, label))
+async def _resolve(target: str | list[Any], port: int, label: str) -> list[dict[str, Any]]:
+    ids, _ = element_ids(await target_elements(target, port, label))
     if not ids:
         raise ToolError(f"{label} contains no elements.")
     if len(ids) > MAX_ELEMENTS:
@@ -53,26 +62,72 @@ async def _boxes(ids: list[dict[str, Any]], port: int) -> tuple[list[Box], int]:
     return boxes, len(ids) - len(boxes)
 
 
-def _new_set(guids: set[str] | list[str], label: str) -> str | None:
-    return (
-        ResultRegistry.register([{"elementId": {"guid": g}} for g in sorted(guids)], element_type=label)
-        if guids
-        else None
-    )
+def _coordinates(points: Any) -> list[Point2D] | None:
+    if not isinstance(points, list) or len(points) < 3:
+        return None
+    try:
+        return [(float(point["x"]), float(point["y"])) for point in points]
+    except (KeyError, TypeError, ValueError):
+        return None
 
 
-async def _near(targets: list[dict], others: list[dict], distance: float, port: int) -> dict[str, Any]:
-    target_boxes, target_missing = await _boxes(targets, port)
-    other_boxes, other_missing = await _boxes(others, port)
+def _outline(entry: Any) -> Outline | None:
+    """The plan outline of a zone or slab, with its holes. None for other elements, and for curved outlines,
+    whose arcs are not drawn here."""
+    if not isinstance(entry, dict) or entry.get("type") not in OUTLINE_TYPES:
+        return None
+    details = entry.get("details")
+    if not isinstance(details, dict) or details.get("polygonArcs"):
+        return None
+    ring = _coordinates(details.get("polygonOutline"))
+    holes: list[list[Point2D]] = []
+    for hole in details.get("holes") or []:
+        if not isinstance(hole, dict) or hole.get("polygonArcs"):
+            return None
+        coordinates = _coordinates(hole.get("polygonOutline") or hole.get("polygonCoordinates"))
+        if coordinates is None:
+            return None
+        holes.append(coordinates)
+    return Outline(ring, holes) if ring else None
+
+
+async def _outlines(ids: list[dict[str, Any]], port: int, warnings: list[str]) -> dict[str, Outline]:
+    """The plan outlines of the zones and slabs among the elements, by GUID."""
+    try:
+        result = await call_and_wait(
+            "elements_get_details_of_elements",
+            {"port": port, "params": {"elements": as_elements(ids), "fields": ["type", "details"]}},
+        )
+    except ToolError as error:
+        warnings.append(f"Zone and slab outlines were not read, so their bounding boxes were used: {error}")
+        return {}
+    entries = result.get("detailsOfElements") if isinstance(result, dict) else None
+    if not isinstance(entries, list) or len(entries) != len(ids):
+        warnings.append("Zone and slab outlines were not read, so their bounding boxes were used: no answer.")
+        return {}
+    return {
+        elem_id["guid"]: outline for elem_id, entry in zip(ids, entries, strict=True) if (outline := _outline(entry))
+    }
+
+
+def _new_set(guids: set[str] | list[str], label: str, project: SetProject) -> str | None:
+    if not guids:
+        return None
+    return ResultRegistry.register([{"elementId": {"guid": g}} for g in sorted(guids)], label, project)
+
+
+async def _near(targets: list[dict], others: list[dict], distance: float, project: SetProject) -> dict[str, Any]:
+    target_boxes, target_missing = await _boxes(targets, project.port)
+    other_boxes, other_missing = await _boxes(others, project.port)
     found = pairs_within(target_boxes, other_boxes, distance, keep=MAX_LISTED)
     response: dict[str, Any] = {
         "relation": "near",
         "distanceMeters": distance,
         "pairCount": found.pair_count,
         "matchedCount": len(found.matched),
-        "matchedSetId": _new_set(found.matched, "Near"),
+        "matchedSetId": _new_set(found.matched, "Near", project),
         "otherMatchedCount": len(found.other_matched),
-        "otherMatchedSetId": _new_set(found.other_matched, "NearOther"),
+        "otherMatchedSetId": _new_set(found.other_matched, "NearOther", project),
         "nearest": [
             {"element": {"guid": a.key}, "other": {"guid": b.key}, "gapMeters": round(gap, 4)}
             for a, b, gap in found.nearest
@@ -84,32 +139,40 @@ async def _near(targets: list[dict], others: list[dict], distance: float, port: 
     return response
 
 
-async def _inside(targets: list[dict], containers: list[dict], port: int) -> dict[str, Any]:
-    target_boxes, target_missing = await _boxes(targets, port)
-    container_boxes, container_missing = await _boxes(containers, port)
-    holders = containers_of(target_boxes, container_boxes)
+async def _inside(targets: list[dict], containers: list[dict], project: SetProject) -> dict[str, Any]:
+    target_boxes, target_missing = await _boxes(targets, project.port)
+    container_boxes, container_missing = await _boxes(containers, project.port)
+    warnings: list[str] = []
+    outlines = await _outlines(containers, project.port, warnings)
+    holders = containers_of(target_boxes, container_boxes, outlines)
+    by_outline = sum(1 for box in container_boxes if box.key in outlines)
     per_container = Counter(holder for keys in holders.values() for holder in keys)
     response: dict[str, Any] = {
         "relation": "inside",
         "insideCount": len(holders),
-        "insideSetId": _new_set(list(holders), "Inside"),
+        "insideSetId": _new_set(list(holders), "Inside", project),
         "outsideCount": len(target_boxes) - len(holders),
         "byContainer": [
             {"container": {"guid": key}, "count": count} for key, count in per_container.most_common(MAX_LISTED)
         ],
-        "note": "An element counts as inside when the center of its bounding box lies in the container's "
-        "bounding box; for L-shaped or sloped containers check the result.",
+        "containersByOutline": by_outline,
+        "containersByBox": len(container_boxes) - by_outline,
+        "note": "An element counts as inside when the center of its bounding box lies within the container: "
+        "within the plan outline of a zone or slab with straight edges (not in its holes) and its height, "
+        "otherwise within the container's bounding box, which is larger than a diagonal or curved container.",
     }
     if target_missing or container_missing:
         response["withoutBoxCount"] = target_missing + container_missing
+    if warnings:
+        response["warnings"] = warnings
     return response
 
 
-async def _collides(targets: list[dict], others: list[dict], port: int) -> dict[str, Any]:
+async def _collides(targets: list[dict], others: list[dict], project: SetProject) -> dict[str, Any]:
     result = await call_and_wait(
         "elements_get_collisions",
         {
-            "port": port,
+            "port": project.port,
             "params": {
                 "elementsGroup1": as_elements(targets),
                 "elementsGroup2": as_elements(others),
@@ -127,9 +190,9 @@ async def _collides(targets: list[dict], others: list[dict], port: int) -> dict[
         "bodyCollisionCount": sum(1 for c in collisions if c.get("hasBodyCollision")),
         "clearanceCollisionCount": sum(1 for c in collisions if c.get("hasClearenceCollision")),
         "matchedCount": len(matched),
-        "matchedSetId": _new_set(matched, "Colliding"),
+        "matchedSetId": _new_set(matched, "Colliding", project),
         "otherMatchedCount": len(other_matched),
-        "otherMatchedSetId": _new_set(other_matched, "CollidingOther"),
+        "otherMatchedSetId": _new_set(other_matched, "CollidingOther", project),
         "examples": [
             {
                 "element": c["elementId1"],
@@ -152,7 +215,7 @@ async def _with_element_ids(response: dict[str, Any], port: int) -> dict[str, An
     warnings: list[str] = []
     labels = await labels_or_warning(sorted({ref["guid"] for ref in refs}), port, warnings)
     if warnings:
-        response["warnings"] = warnings
+        response["warnings"] = [*response.get("warnings", []), *warnings]
     for ref in refs:
         if labels.get(ref["guid"]):
             ref["id"] = labels[ref["guid"]]
@@ -166,7 +229,9 @@ async def _with_element_ids(response: dict[str, Any], port: int) -> dict[str, An
         "Relates two sets of elements in space. target_set and other_set: setIds from archicad_query, or lists of "
         "elements (the same set may be given twice). relation 'near': pairs whose bounding boxes are at most "
         "distance meters apart (0 = touching or overlapping), e.g. conduits within 0.5 m of walls. 'inside': "
-        "target elements whose bounding-box center lies within an element of other_set, e.g. furniture in zones. "
+        "target elements whose bounding-box center lies within an element of other_set, e.g. furniture in zones; "
+        "zones and slabs with straight edges are tested by their plan outline and holes, others by their "
+        "bounding box. "
         "'collides': Archicad's exact check of the real geometry, including MEP clearance zones. "
         "Returns counts, the nearest pairs or examples (with their Element IDs), and the matching elements as new "
         "setIds."
@@ -188,14 +253,15 @@ async def archicad_spatial_query(
     target_port = port or 19723
     if distance < 0:
         raise ToolError("distance must be zero or more meters.")
-    targets = _resolve(target_set, "target_set")
-    others = _resolve(other_set, "other_set")
+    targets = await _resolve(target_set, target_port, "target_set")
+    others = await _resolve(other_set, target_port, "other_set")
+    project = await open_project(target_port)
     if relation == "near":
-        response = await _near(targets, others, distance, target_port)
+        response = await _near(targets, others, distance, project)
     elif relation == "inside":
-        response = await _inside(targets, others, target_port)
+        response = await _inside(targets, others, project)
     elif relation == "collides":
-        response = await _collides(targets, others, target_port)
+        response = await _collides(targets, others, project)
     else:
         raise ToolError("relation must be 'near', 'inside' or 'collides'.")
     return await _with_element_ids(response, target_port)
