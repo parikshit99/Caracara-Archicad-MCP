@@ -6,7 +6,7 @@ import pytest
 from mcp.server.mcpserver.exceptions import ToolError
 from mcp.types import ImageContent
 
-from caracara_archicad_mcp.images import build_result
+from caracara_archicad_mcp.tool_results import build_result
 from caracara_archicad_mcp.tools.custom import functions
 from caracara_archicad_mcp.tools.custom.functions import call_and_wait, is_running
 

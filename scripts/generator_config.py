@@ -91,10 +91,7 @@ TAPIR_CONFIG = ApiSourceConfig(
         "GenerateDocumentation",  # Internal use only
         "ShowScriptUI",  # Application UI workflow
         "GetScriptUIResult",  # Companion to ShowScriptUI
-        "DeleteAttributes",  # Official deletes by GUID without a type argument
-        "DeleteAttributeFolders",  # Same deletion; prefer Official
         "RenameAttributeFolders",  # Same rename; prefer Official
-        "DeleteNavigatorItems",  # Same contract; prefer Official
         "MoveNavigatorItem",  # Official already moves and reorders navigator items
         "CloneProjectMapItemToViewMap",  # Only adds batching; prefer Official
         "CreateLayoutSubset",  # Only adds batching/defaults; prefer Official
@@ -109,15 +106,28 @@ TAPIR_CONFIG = ApiSourceConfig(
         "GetZoneCategories",  # Same category details; index available elsewhere
         "GetAllClassificationSystems",  # Same contract; prefer Official
         "GetElementsByClassification",  # Official returns the same IDs with flat pagination
-        "GetClassificationOfAttributesInSystem",  # Misdeclared result; use GetClassificationsOfAttributes
+        "GetClassificationOfAttributesInSystem",  # Covered by GetClassificationsOfAttributes
+        "GetComponentsOfElements",  # Same contract; prefer Official
+        "GetCommands",  # Use curated MCP discovery; avoid the full upstream catalog
+        "OpenSettingsDialog",  # Application UI workflow
+        "PickAttribute",  # Application UI workflow
+        "PickAttributeFolder",  # Application UI workflow
+        "PickLibraryFolder",  # Application UI workflow
+        "PickLibraryPart",  # Application UI workflow
+        "PickLibraryPartFile",  # Application UI workflow
+        "PickLibraryPartSaveLocation",  # Application UI workflow
+        "PickPictureFile",  # Application UI workflow
+        "PickZoneStampOrLabelFile",  # Application UI workflow
+        "ShowIFCExportSettings",  # Application UI workflow
+        "SetCurrent3DStyle",  # Always refuses; upstream API crashes Archicad
     },
     paginated_commands={
         "GetAllElements": "elements",
         "GetSelectedElements": "elements",
-        "GetElementsByType": "elements",
         "GetAllProperties": "properties",
         "GetAttributesByType": "attributes",
         "GetIssues": "issues",
+        "GetElementsByType": "elements",
         "GetElementsByIFCIds": "elementsByIFCIds",
         "GetMEPElements": "elements",
         "GetAvailableLibraryParts": "libraryParts",
@@ -160,39 +170,16 @@ TAPIR_CONFIG = ApiSourceConfig(
         "GetUserDataOfGroups": "userDataOfGroups",
         "GetZoneReductions": "reductionsOfZones",
         "TriangulatePolygonsOfElements": "triangulations",
-        "GetCurrentRevisionChangesOfLayouts": "currentRevisionChangesOfLayouts",
-        "GetRevisionChangesOfElements": "revisionChangesOfElements",
-        "GetRevisionIssues": "revisionIssues",
-        "GetAddOnViewpointChildren": "viewpointIds",
-        "GetAddOnViewpointRoots": "viewpointIds",
-        "GetAddOnViewpoints": "viewpoints",
-        "GetAllElementsOfGroups": "elementsOfGroups",
-        "GetAnalyticalLinks": "links",
-        "GetAnalyticalLoads": "loads",
         "GetAnalyticalMemberDetails": "analyticalMembers",
-        "GetAnalyticalMemberPartGeometries": "geometries",
-        "GetAnalyticalMembers": "curveMembers",
-        "GetAnalyticalReleases": "releases",
-        "GetAnalyticalSupports": "supports",
-        "GetBodyMaterialsOfElements": "bodyMaterials",
-        "GetCutPolygonsOfElements": "cutPolygons",
-        "GetDrawingPrimitivesOfElements": "drawingPrimitivesOfElements",
-        "GetElementChangesSince": "modifiedElements",
         "GetElementConnections": "connections",
         "GetElementsInCreationOrder": "elements",
-        "GetElementUserData": "elementUserData",
-        "GetFavoriteDetails": "favoriteDetails",
-        "GetHotspotsOfElements": "hotspotsOfElements",
-        "GetIFCClassificationReferencesOfElements": "elementIFCClassificationReferences",
-        "GetMEPDistributionSystems": "distributionSystems",
-        "GetMEPElementDetails": "elementDetails",
-        "GetMEPPreferenceTableRows": "rows",
-        "GetMergedElements": "elementMerges",
-        "GetPropertyObjectsOfElements": "propertyObjectsOfElements",
-        "GetSkylightHolePolygons": "skylightHolePolygons",
-        "GetStoryControlPrimitives": "primitives",
-        "GetTextureCoordinates": "textureCoordinates",
-        "GetUserDataOfAttributes": "userDataOfAttributes",
+        "GetPropertyValuesOfElementComponents": "propertyValuesForElementComponents",
+        "FindLibraryParts": "libraryParts",
+        "GetElementsByCriteria": "elements",
+        "GetFavoriteContents": "favorites",
+        "GetLibraryPart2DPrimitives": "primitives",
+        "GetMissingAttributes": "missingAttributes",
+        "GetUnusedLibraryParts": "unusedLibraryParts",
     },
     image_fields={
         "GetElementPreviewImage": "previewImage",
@@ -203,6 +190,7 @@ TAPIR_CONFIG = ApiSourceConfig(
     },
     image_lists={
         "GetLibraryPartPictures": ("gdlPictures", "darkGdlPictures"),
+        "ConvertImages": "images",
     },
 )
 
@@ -229,7 +217,11 @@ OFFICIAL_CONFIG = ApiSourceConfig(
         "Basic Commands": "app",
     },
     commands_to_exclude={
+        "Get2DBoundingBoxes",  # Tapir also supports 2D elements and other databases
         "Get3DBoundingBoxes",  # Tapir command works on subelements
+        "DeleteAttributes",  # Tapir also supports dry-run checks
+        "DeleteAttributeFolders",  # Tapir also supports dry-run checks
+        "DeleteNavigatorItems",  # Tapir also supports dry-run checks
         "GetAllElements",  # Tapir command works on more element types
         "GetElementsByType",  # Tapir command works on more element types
         "GetSelectedElements",  # Tapir command works on more element types
@@ -237,6 +229,7 @@ OFFICIAL_CONFIG = ApiSourceConfig(
         "SetClassificationsOfElements",  # Tapir command works on subelements
         "SetPropertyValuesOfElements",  # Tapir command works on subelements
         "GetPropertyValuesOfElements",  # Tapir command works on subelements
+        "GetPropertyValuesOfElementComponents",  # Keep Tapir property-ID compatibility end to end
         "GetAttributesByType",  # Tapir adds names, indices and MEP/operation types
         "IsAlive",  # not useful as tool
         "ExecuteAddOnCommand",  # we handle it with namespaces
@@ -254,7 +247,6 @@ OFFICIAL_CONFIG = ApiSourceConfig(
         "GetAllPropertyIds": "propertyIds",
         "GetAllPropertyNames": "properties",
         "GetDetailsOfProperties": "propertyDefinitions",
-        "GetPropertyValuesOfElementComponents": "propertyValuesForElementComponents",
     },
     image_lists={
         "GetProfileAttributePreview": "previewImages",

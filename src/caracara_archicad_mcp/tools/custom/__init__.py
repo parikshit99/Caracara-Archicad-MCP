@@ -1,4 +1,14 @@
-from . import build, calculate, capture, find_properties, functions, meta_verbs, overview, spatial_query
+from . import (
+    build,
+    calculate,
+    capture,
+    element_queries,
+    find_properties,
+    functions,
+    meta_verbs,
+    overview,
+    spatial_query,
+)
 from .build import archicad_build
 from .calculate import archicad_calculate
 from .capture import archicad_capture_view
@@ -19,6 +29,7 @@ __all__ = [
     "build",
     "calculate",
     "capture",
+    "element_queries",
     "find_properties",
     "functions",
     "meta_verbs",

@@ -18,7 +18,7 @@ license = "MIT"
 
 keywords = ["archicad", "bim", "automation", "api", "mcp", "ai", "llm", "caracara"]
 classifiers = [
-    "Development Status :: 4 - Beta",
+    "Development Status :: 5 - Production/Stable",
     "Environment :: Console",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
@@ -33,7 +33,7 @@ classifiers = [
 
 dependencies = [
     "mcp>=2,<3",
-    "multiconn-archicad==0.9.7",
+    "multiconn-archicad==0.10.0",
     "uvicorn>=0.35.0",
 ]
 

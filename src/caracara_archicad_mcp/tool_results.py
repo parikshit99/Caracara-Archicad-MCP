@@ -1,4 +1,4 @@
-"""Return base64 images from Archicad as MCP image content, so the model can see them and its context stays small."""
+"""Build MCP tool results with compact JSON and separate image blocks."""
 
 from __future__ import annotations
 
@@ -30,7 +30,7 @@ def _placeholder(number: int, allowed: bool) -> str:
 
 
 def _image_content(data: JsonValue) -> ImageContent | None:
-    # The image commands offer png and jpg. Anything else stays in the JSON, so a client never gets a broken image.
+    # Emit recognized PNG/JPEG content; other formats stay in JSON for the caller to handle.
     if not isinstance(data, str):
         return None
     try:
@@ -69,10 +69,13 @@ def extract_images(
         previous_count = len(images)
         items = []
         for item in values:
-            # Library pictures are strings. Profile previews also carry metadata and error items.
+            # Library pictures are strings; converted images and profile previews use wrappers.
             if isinstance(item, str) and (image := _image_content(item)) is not None:
                 images.append(image)
                 item = _placeholder(len(images), allowed)
+            elif isinstance(item, dict) and (image := _image_content(item.get("image"))) is not None:
+                images.append(image)
+                item = {**item, "image": _placeholder(len(images), allowed)}
             elif (
                 isinstance(item, dict)
                 and isinstance(content := item.get("image"), dict)
@@ -87,11 +90,14 @@ def extract_images(
     return ({**result, **replacements} if replacements else result), images if allowed else []
 
 
+def compact_json(payload: JsonValue) -> str:
+    return json.dumps(payload, ensure_ascii=False, separators=(",", ":"), allow_nan=False)
+
+
 def build_result(payload: dict[str, JsonValue], images: Sequence[ImageContent] = ()) -> CallToolResult:
     """Render a JSON object as text and structured content, followed by its image blocks."""
-    text = json.dumps(payload, ensure_ascii=False, indent=2, allow_nan=False)
     return CallToolResult(
-        content=[TextContent(type="text", text=text), *images],
+        content=[TextContent(type="text", text=compact_json(payload)), *images],
         structured_content=payload,
     )
 

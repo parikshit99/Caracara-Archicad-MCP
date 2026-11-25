@@ -31,10 +31,11 @@ Check each of these after every upstream merge.
 | :--- | :--- | :--- |
 | Package `caracara_archicad_mcp` instead of `tapir_archicad_mcp`; `tapir_archicad_mcp` stays as a compatibility shim. | Caracara's own name, without breaking configurations written for upstream. | `src/tapir_archicad_mcp/__init__.py` |
 | Name, version, description and `user_config` in `manifest.json` and `pyproject.toml` are Caracara's; only dependency pins are taken from upstream. | Caracara's bundle and releases are its own. | `manifest.json`, `pyproject.toml` |
-| Images from Archicad are sent as image content only when the user allows images; otherwise they are left out with a note (2026-11-01). | Upstream returns them to every caller. Pictures of the design are a new kind of data (R14), and base64 sent as text cost hundreds of thousands of tokens per picture. | `images.py` |
+| Images from Archicad are sent as image content only when the user allows images; otherwise they are left out with a note (2026-11-01). | Upstream returns them to every caller. Pictures of the design are a new kind of data (R14), and base64 sent as text cost hundreds of thousands of tokens per picture. | `tool_results.py` (upstream renamed `images.py` in 0.7.0) |
 | `CloseProject` and `NewProject` are generated but refused unless the user allows session commands; `QuitArchicad` is left out (2026-11-01). | They discard unsaved work, and Archicad cannot say whether there is any. | `safety.py`, `scripts/generator_config.py` |
 | Some Tapir commands are left out because the official API covers them, or their schemas are malformed. | One command per job; broken schemas cannot be validated. | `scripts/generator_config.py` |
 | Upstream dropped Tapir `GetLayers`; the project overview reads layers from the official `GetLayerAttributes` (2026-11-01). | Followed upstream instead of keeping a command it removed. | `tools/custom/overview.py` |
+| Upstream dropped `GetElementsByType` and `GetElementsByClassification` in 0.7.0 to steer agents to its `elements_query`; Caracara keeps Tapir `GetElementsByType` and official `GetElementsByClassification` and offers `elements_query` as well (2026-11-25, maintainer). | `archicad_query` is built on them and works with Tapir 1.7.x; `elements_query` needs Tapir 2.0.0. | `scripts/generator_config.py`, `tools/custom/meta_verbs.py` |
 
 ## Decisions
 

@@ -1,4 +1,5 @@
 import asyncio
+import inspect
 import json
 import logging
 import time
@@ -22,13 +23,13 @@ from pydantic import ValidationError
 from caracara_archicad_mcp.app import CARACARA_VERSION, mcp
 from caracara_archicad_mcp.context import job_store_instance, multi_conn_instance
 from caracara_archicad_mcp.file_paths import confine_write_paths
-from caracara_archicad_mcp.images import build_result, extract_images, to_tool_result
 from caracara_archicad_mcp.jobs import JobStore
 from caracara_archicad_mcp.pagination import PaginationRequest, prepare_result
 from caracara_archicad_mcp.request_lifecycle import DispatchLifecycle
 from caracara_archicad_mcp.safety import ensure_allowed, is_reading_command
+from caracara_archicad_mcp.tool_results import build_result, extract_images, to_tool_result
+from caracara_archicad_mcp.tools.custom.command_discovery import archicad_list_commands, command_groups
 from caracara_archicad_mcp.tools.custom.models import (
-    CommandOverview,
     CommandSchema,
     DiscoveryResult,
     ProjectType,
@@ -170,13 +171,15 @@ def _get_tapir_version_warning(tapir: TapirInfo) -> str | None:
     return None
 
 
-@mcp.tool(
+mcp.add_tool(
+    archicad_list_commands,
     name="archicad_list_commands",
     title="List Available Archicad Commands [DEPRECATED]",
     description=(
-        "Lists every Archicad command name with a short description. Prefer archicad_query/archicad_mutate "
-        "when they cover the task; otherwise pick a name here and read its schema with "
-        "archicad_get_command_schema before calling it."
+        f"{inspect.getdoc(archicad_list_commands)}\n\n"
+        f"Available groups: {', '.join(command_groups())}. "
+        "Prefer archicad_query/archicad_mutate when they cover the task; otherwise use "
+        "archicad_get_command_schema before executing a selected command."
     ),
     annotations=ToolAnnotations(
         readOnlyHint=True,
@@ -185,15 +188,6 @@ def _get_tapir_version_warning(tapir: TapirInfo) -> str | None:
         openWorldHint=False,
     ),
 )
-def archicad_list_commands() -> list[CommandOverview]:
-    log.info("Executing archicad_list_commands tool...")
-    return [
-        CommandOverview(
-            name=tool["name"],
-            description=tool["description"],
-        )
-        for tool in TOOL_DISCOVERY_CATALOG.values()
-    ]
 
 
 @mcp.tool(
@@ -388,13 +382,13 @@ def _serialized_parameters(params: Any) -> str:
 
 def _get_header(port: int) -> ConnHeader:
     multi_conn = multi_conn_instance.get()
-    if Port(port) not in multi_conn.active:
+    if Port(port) not in multi_conn.open_port_headers:
         # A fresh server knows no ports until discovery runs, and the model may already know
         # the port from an earlier conversation; look at that one port instead of failing.
         multi_conn.refresh.from_ports(Port(port))
         multi_conn.connect.from_ports(Port(port))
     try:
-        return multi_conn.active[Port(port)]
+        return multi_conn.open_port_headers[Port(port)]
     except KeyError:
         raise ToolError(f"Port {port} is not an active Archicad connection.") from None
 

@@ -18,3 +18,4 @@ server/venv/
 site/
 branding/
 skills/
+.tmp/discovery-wordnet/

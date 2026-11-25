@@ -31,7 +31,6 @@ from caracara_archicad_mcp.tools.custom.functions import (
     list_active_archicads,
 )
 from caracara_archicad_mcp.tools.custom.models import (
-    CommandOverview,
     CommandSchema,
     DiscoveryResult,
 )
@@ -81,18 +80,10 @@ def set_multi_conn():
 
 
 def test_archicad_list_commands(fake_archicad):
-    commands = archicad_list_commands()
-
-    assert isinstance(commands, list)
-    assert len(commands) > 0
-
-    first_cmd = commands[0]
-    assert isinstance(first_cmd, CommandOverview)
-    assert first_cmd.name and first_cmd.description
-
-    all_names = [cmd.name for cmd in commands]
-    assert "elements_get_selected_elements" in all_names
-    assert "elements_create_slabs" in all_names
+    names = ["elements_get_selected_elements", "elements_create_slabs"]
+    page = archicad_list_commands(keywords=names).result
+    assert [match.commands for match in page.exact_matches] == [[name] for name in names]
+    assert page.matches == []
 
 
 def test_archicad_get_command_schema_valid(fake_archicad):
